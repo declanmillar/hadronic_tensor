@@ -67,16 +67,22 @@ a1.fill_between(q, Smit_sim - Ssim_err, Smit_sim + Ssim_err,
                 color="C0", alpha=0.22, lw=0, zorder=1)
 a1.plot(q, Smit_sim, "--", color="C0", lw=1.1, zorder=3,
         label=rf"model ($g^\ast\!=\!1,L^\ast\!=\!{Lstar:.1f}$)")
+# raw device response (pre-mitigation): floor-dominated, but its SHAPE
+# already tracks exact -- the affine fit only removes the floor c and
+# rescales by 1/f, and cannot change the correlation.
+a1.plot(q, hw["S_raw"], ":", color="0.55", lw=0.9, zorder=1)
+a1.plot(q, hw["S_raw"], "x", color="0.4", ms=4, zorder=2,
+        label="raw device (pre-mitig.)")
 a1.errorbar(q, Smit, yerr=Serr, fmt="o", color="C3", ms=4.5, lw=0,
-            elinewidth=1.1, capsize=2, zorder=4, label="ibm\\_kingston")
+            elinewidth=1.1, capsize=2, zorder=4, label="ibm\\_kingston (mitig.)")
 a1.set_xlabel(r"$q^1$")
 a1.set_ylabel(r"$S(q^1)$")
-a1.set_ylim(-0.05, 1.05)
-a1.legend(fontsize=7.5, loc="upper left", handlelength=1.6)
+a1.set_ylim(-0.05, 1.55)
+a1.legend(fontsize=6.8, loc="upper left", handlelength=1.6, ncol=1)
 a1.set_title("(a) structure factor, 101 qubits", fontsize=9)
 rec_hw = int(np.sum(np.abs((Smit - Si) / Si) < 0.15))
-a1.text(0.97, 0.05,
-        rf"corr $=%.2f$ (dev), $%.2f$ (model)" % (corr_hw, corr_sim),
+a1.text(0.97, 0.04,
+        rf"corr(raw,\,exact)$=%.2f$" % corr_hw,
         transform=a1.transAxes, ha="right", va="bottom", fontsize=7,
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="0.7", lw=0.6))
 
