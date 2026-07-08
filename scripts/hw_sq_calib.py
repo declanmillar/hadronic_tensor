@@ -33,7 +33,7 @@ NS, CENTER = 50, 24
 K0TAG = "k1.26"
 P2_0, P1_0 = 0.005, 3e-4            # nominal gate depolarizing (s=1)
 RO01_0, RO10_0 = 0.012, 0.028      # nominal asymmetric readout (s=1)
-SCALES = [0.5, 1.0, 2.0, 3.0, 4.0, 6.0]
+SCALES = [0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 2.27]   # idx 6: s* (Gauss ~ kingston)
 t0 = time.time()
 
 
@@ -98,31 +98,37 @@ def finalize(accs, lat, QS):
     return S, gs / n, n
 
 
-def run_scale(s, lat, prep, QS, anc, ntraj, per):
+def one_traj(s, seed, lat, prep, QS, anc, per, ro_seed):
+    """A single noise trajectory -> accumulator dict.  Isolated so a rare
+    Aer-MPS segfault at high noise costs only this trajectory (run per
+    subprocess and retry with a bumped seed)."""
     p2, p1 = P2_0 * s, P1_0 * s
     ro01, ro10 = min(RO01_0 * s, 0.4), min(RO10_0 * s, 0.4)
-    seeds = np.random.SeedSequence(int(1000 * s) + 7).spawn(ntraj)
+    rng = np.random.default_rng(seed)
+    mps, perm = backends.prepare_state_mps(
+        lat, prep, anc, cap=256, trunc=1e-8,
+        circuit_transform=lambda c: noise_transform(c, rng, p2, p1))
+    nq = lat.n_qubits + 1
+    qc = QuantumCircuit(nq, lat.n_qubits)
+    qc.set_matrix_product_state(mps)
+    for nn in range(lat.n_links):
+        qc.h(perm[lat.link_qubit(nn)])
+    for v in range(lat.n_qubits):
+        qc.measure(perm[v], v)
+    sim = AerSimulator(method="matrix_product_state",
+                       matrix_product_state_truncation_threshold=1e-8)
+    cnt = sim.run(qc, shots=per).result().get_counts()
+    bstr = np.vstack([np.tile(np.frombuffer(bs[::-1].encode(), np.uint8)
+                              - ord("0"), (c, 1)) for bs, c in cnt.items()])
+    return accumulate(bstr, lat, QS, ro01, ro10, ro_seed=ro_seed)
+
+
+def run_scale(s, lat, prep, QS, anc, ntraj, per):
     accs = []
     for t in range(ntraj):
-        rng = np.random.default_rng(seeds[t])
-        mps, perm = backends.prepare_state_mps(
-            lat, prep, anc, cap=256, trunc=1e-8,
-            circuit_transform=lambda c: noise_transform(c, rng, p2, p1))
-        nq = lat.n_qubits + 1
-        qc = QuantumCircuit(nq, lat.n_qubits)
-        qc.set_matrix_product_state(mps)
-        for nn in range(lat.n_links):
-            qc.h(perm[lat.link_qubit(nn)])
-        for v in range(lat.n_qubits):
-            qc.measure(perm[v], v)
-        sim = AerSimulator(method="matrix_product_state",
-                           matrix_product_state_truncation_threshold=1e-8)
-        cnt = sim.run(qc, shots=per).result().get_counts()
-        bstr = np.vstack([np.tile(np.frombuffer(bs[::-1].encode(), np.uint8)
-                                  - ord("0"), (c, 1))
-                          for bs, c in cnt.items()])
-        accs.append(accumulate(bstr, lat, QS, ro01, ro10,
-                               ro_seed=int(1000 * s) + t))
+        seed = np.random.SeedSequence(int(1000 * s) + 7).spawn(ntraj)[t]
+        accs.append(one_traj(s, seed, lat, prep, QS, anc, per,
+                             ro_seed=int(1000 * s) + t))
         log(f"  s={s:.1f} traj {t+1}/{ntraj}")
     S, G, nshot = finalize(accs, lat, QS)
     return S, G, nshot
@@ -130,6 +136,49 @@ def run_scale(s, lat, prep, QS, anc, ntraj, per):
 
 def main():
     # hw_sq_calib.py <ntraj> <per> [scale_idx | "combine"]
+    # hw_sq_calib.py onetraj  <scale_idx> <seed_int> <per>
+    # hw_sq_calib.py assemble <scale_idx> <ntraj>
+    import glob
+    if sys.argv[1] == "onetraj":
+        idx, seed, per = int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
+        lat, prep = build_prep()
+        QS = 2 * np.pi * np.arange(1, lat.nx // 2 + 1) / lat.nx
+        anc = min(split_current(cur.charge_density(lat, CENTER))[1][0][0])
+        acc = one_traj(SCALES[idx], seed, lat, prep, QS, anc, per,
+                       ro_seed=seed % 100000)
+        np.savez(f"data/tmp_traj_s{idx}_{seed}.npz", **acc)
+        log(f"onetraj s-idx {idx} seed {seed} OK ({acc['n']} shots)")
+        return
+    if sys.argv[1] == "assemble":
+        idx, ntraj = int(sys.argv[2]), int(sys.argv[3])
+        lat = Z2Lattice(NS, pbc=True)
+        QS = 2 * np.pi * np.arange(1, lat.nx // 2 + 1) / lat.nx
+        Si = np.load(f"data/hwsf_ideal_ns{NS}_{K0TAG}.npz")["S"]
+        A = np.vstack([Si, np.ones_like(Si)]).T
+        files = sorted(glob.glob(f"data/tmp_traj_s{idx}_*.npz"))[:ntraj]
+        accs = [dict(np.load(f)) for f in files]
+        S, G, nshot = finalize(accs, lat, QS)
+        (f, c), *_ = np.linalg.lstsq(A, S, rcond=None)
+        Smit = (S - c) / f
+        rec = int(np.sum(np.abs((Smit - Si) / Si) < 0.15))
+        # bootstrap over trajectories -> S_err, G_err (trajectory noise band)
+        rng = np.random.default_rng(idx)
+        nt = len(accs)
+        Sb, Gb = [], []
+        for _ in range(400):
+            samp = [accs[j] for j in rng.integers(0, nt, nt)]
+            Sr, Gr, _ = finalize(samp, lat, QS)
+            (fr, cr), *_ = np.linalg.lstsq(A, Sr, rcond=None)
+            Sb.append((Sr - cr) / fr)
+            Gb.append(Gr.mean())
+        S_err, G_err = np.std(Sb, 0), float(np.std(Gb))
+        np.savez(f"data/hwsq_calib_s{idx}_{K0TAG}.npz", s=SCALES[idx],
+                 gauss=G.mean(), G=G, S_raw=S, S_mit=Smit, S_err=S_err,
+                 G_err=G_err, fc=[f, c], rec=rec, nshot=nshot, ntraj=nt)
+        log(f"assemble s-idx {idx}: {nt} traj, Gauss {G.mean():.3f}+/-{G_err:.3f}"
+            f", recovered {rec}/12 ({nshot} shots)")
+        return
+
     ntraj = int(sys.argv[1]) if len(sys.argv) > 1 else 8
     per = int(sys.argv[2]) if len(sys.argv) > 2 else 2000
     Si = np.load(f"data/hwsf_ideal_ns{NS}_{K0TAG}.npz")["S"]
