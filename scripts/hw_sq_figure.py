@@ -47,7 +47,15 @@ for _ in range(200):
     S = ((np.abs(rho) ** 2).mean(0) - np.abs(rho.mean(0)) ** 2).real / nx
     (f, c), *_ = np.linalg.lstsq(A, S, rcond=None)
     Sb.append((S - c) / f)
-Ssim_err = np.std(Sb, 0)
+sim_shot = np.std(Sb, 0)
+# same error model as the device: shot (bootstrap) + mitigation-model
+# systematic (RMS affine-fit residual / f), so the band is apples-to-apples
+zv0 = 1 - 2 * bits[:, sites]
+rho0 = zv0 @ np.exp(1j * np.outer(q, xv)).T
+S0 = ((np.abs(rho0) ** 2).mean(0) - np.abs(rho0.mean(0)) ** 2).real / nx
+(f0, c0), *_ = np.linalg.lstsq(A, S0, rcond=None)
+sim_syst = np.sqrt(np.sum((S0 - (f0 * Si + c0)) ** 2) / (len(Si) - 2)) / f0
+Ssim_err = np.sqrt(sim_shot ** 2 + sim_syst ** 2)
 
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.0, 3.0),
                              gridspec_kw={"width_ratios": [1.35, 1]},
