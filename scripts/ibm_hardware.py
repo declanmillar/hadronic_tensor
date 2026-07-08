@@ -205,7 +205,7 @@ def analyze(jobfile):
         g = np.array([out[f"G{n}"] for n in range(NS)])
         log(f"Gauss stabilizers: mean {g.mean():.4f}, min {g.min():.4f} "
             f"(ideal 1; mean is a local-fidelity witness)")
-        log(f"<H> = {out['H']:.3f} (MPS truth -52.225), "
+        log(f"<H> = {out['H']:.3f} (MPS truth -49.37), "
             f"Pf = {out['Pf']:.3f}, Q = {out['Q']:.3f}")
     log(f"saved {jobfile.replace('.json', '.npz')}")
 
