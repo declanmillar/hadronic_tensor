@@ -65,15 +65,18 @@ def measured_circuit(lat, prep):
     return qc
 
 
-def accumulate(bitstrings, lat, QS, ro_seed=7):
+def accumulate(bitstrings, lat, QS, ro_seed=7, apply_ro=True):
     """bitstrings (Nshot,nq) -> additive accumulators so partial runs on
     different machines combine exactly: sum_rho(q), sum |rho(q)|^2, Gauss
     sums, shot count.  S(q) is a shot-variance, so only these sums (not the
-    per-worker S) may be pooled."""
+    per-worker S) may be pooled.  apply_ro injects the asymmetric readout
+    model -- ON for clean sim bits, OFF for hardware bits (whose readout
+    error is already physically present; re-applying would double-count)."""
     rng = np.random.default_rng(ro_seed)
     b = bitstrings.copy()
-    b = b ^ (((b == 0) & (rng.random(b.shape) < RO01)) |
-             ((b == 1) & (rng.random(b.shape) < RO10)))
+    if apply_ro:
+        b = b ^ (((b == 0) & (rng.random(b.shape) < RO01)) |
+                 ((b == 1) & (rng.random(b.shape) < RO10)))
     b = b.astype(np.int8)                          # signed for +-1 arithmetic
     sites = np.array([lat.site_qubit(v) for v in range(lat.ns)])
     zv = 1 - 2 * b[:, sites]
@@ -222,7 +225,7 @@ elif mode == "analyze":
     bits = np.vstack([np.tile(np.frombuffer(bs[::-1].encode(), np.uint8)
                               - ord("0"), (c, 1))
                       for bs, c in counts.items()]).astype(np.uint8)
-    acc = accumulate(bits, lat, QS)
+    acc = accumulate(bits, lat, QS, apply_ro=False)   # device readout already present
     S, G, nshot = finalize([acc], lat, QS)
     Si = np.load(f"data/hwsf_ideal_ns{NS}_{K0TAG}.npz")["S"]
     A = np.vstack([Si, np.ones_like(Si)]).T
