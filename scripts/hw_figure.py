@@ -20,13 +20,19 @@ fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.0, 3.0),
 for path, name, col in DEV:
     d = np.load(path)
     g = np.array([float(d[f"G{n}"]) for n in range(50)])
-    a1.plot(range(50), g, "o-", color=col, ms=3, lw=0.8,
-            label=f"{name} (mean {g.mean():.2f})")
+    ge = np.array([float(d[f"G{n}_err"]) for n in range(50)])   # EstimatorV2 stds
+    a1.errorbar(range(50), g, yerr=ge, fmt="o-", color=col, ms=3, lw=0.8,
+                elinewidth=0.6, capsize=1,
+                label=f"{name} (mean {g.mean():.2f})")
 # ibm_kingston: witnesses reconstructed from the boosted-packet S(q^1) run's
-# own bitstrings (sites in Z, links in X natively give the Gauss stabilizers).
-gk = np.load("data/hwsq_HARDWARE_k1.26.npz")["G"]
-a1.plot(range(50), gk, "s-", color="C2", ms=3, lw=0.8,
-        label=f"ibm\\_kingston$^\\dagger$ (mean {gk.mean():.2f})")
+# own bitstrings (sites in Z, links in X natively give the Gauss stabilizers);
+# each G_n is a mean of +-1 outcomes -> binomial shot error sqrt((1-G^2)/N).
+hwk = np.load("data/hwsq_HARDWARE_k1.26.npz")
+gk, Nk = hwk["G"], int(hwk["nshot"])
+gke = np.sqrt(np.clip(1 - gk ** 2, 0, 1) / Nk)
+a1.errorbar(range(50), gk, yerr=gke, fmt="s-", color="C2", ms=3, lw=0.8,
+            elinewidth=0.6, capsize=1,
+            label=f"ibm\\_kingston$^\\dagger$ (mean {gk.mean():.2f})")
 a1.axhline(1.0, color="0.4", lw=0.8, ls="--")
 a1.axhline(0.0, color="0.7", lw=0.6)
 a1.set_xlabel("site $n$")
@@ -41,9 +47,13 @@ x = np.arange(len(labels))
 w = 0.35
 for i, (path, name, col) in enumerate(DEV):
     d = np.load(path)
-    g = np.mean([float(d[f"G{n}"]) for n in range(50)])
-    vals = [g, float(d["H"]) / H_TRUTH, abs(float(d["Pf"]))]
-    a2.bar(x + (i - 0.5) * w, vals, w, color=col, label=name)
+    gn = np.array([float(d[f"G{n}"]) for n in range(50)])
+    gne = np.array([float(d[f"G{n}_err"]) for n in range(50)])
+    vals = [gn.mean(), float(d["H"]) / H_TRUTH, abs(float(d["Pf"]))]
+    verr = [np.sqrt(np.sum(gne ** 2)) / 50, float(d["H_err"]) / abs(H_TRUTH),
+            float(d["Pf_err"])]
+    a2.bar(x + (i - 0.5) * w, vals, w, color=col, label=name,
+           yerr=verr, capsize=2, error_kw=dict(elinewidth=0.8))
 a2.axhline(1.0, color="0.4", lw=0.8, ls="--")
 a2.set_xticks(x)
 a2.set_xticklabels(labels, fontsize=8)

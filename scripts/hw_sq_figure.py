@@ -75,16 +75,19 @@ a1.text(0.97, 0.05,
 # --- panel (b): the two sectors separate ---
 a2.plot(Ls, wl, "-", color="C0", lw=1.3, zorder=3,
         label=r"witness $\langle G\rangle(L)$, $g{=}1$")
-a2.axhspan(Ghw - Gerr, Ghw + Gerr, color="C3", alpha=0.18, lw=0)
 a2.axhline(Ghw, color="C3", lw=1.0, ls=":")
 a2.axvline(Lstar, color="0.5", lw=0.9, ls="--")
-a2.plot([Lstar], [Ghw], "*", color="C3", ms=13, zorder=5,
-        label="ibm\\_kingston")
+# propagate the witness error to L* through the local slope of G(L)
+slope = abs(np.interp(Lstar, Ls, np.gradient(wl, Ls)))
+Lstar_err = Gerr / slope if slope > 0 else 0.0
+a2.errorbar([Lstar], [Ghw], yerr=Gerr, xerr=Lstar_err, fmt="*",
+            color="C3", ms=13, zorder=5, elinewidth=1.1, capsize=2,
+            label="ibm\\_kingston")
 # S(q) contrast is flat in L (site-only) -- draw as a reference band
 a2.axhline(0.754, color="C2", lw=0.8, ls="-.", alpha=0.6)
 a2.text(11.6, 0.775, r"$L{=}1$ (uniform)", color="C2", fontsize=6.5,
         ha="right", va="bottom")
-a2.set_xlabel(r"link-readout scale $L$")
+a2.set_xlabel(r"link-sector error scale $L$")
 a2.set_ylabel(r"Gauss witness $\langle G\rangle$")
 a2.set_ylim(0, 0.85)
 a2.set_xlim(Ls.min(), Ls.max())
