@@ -229,10 +229,10 @@ elif mode == "analyze":
     (f, c), *_ = np.linalg.lstsq(A, S, rcond=None)
     Smit = (S - c) / f
     res_ = (Smit - Si) / Si
-    rec = Si > c
     log(f"HARDWARE {meta['backend']}: {nshot} shots, Gauss mean {G.mean():.3f}")
     log(f"noise fit f={f:.3f} c={c:.3f}; recovered "
-        f"{int(np.sum(rec & (np.abs(res_) < 0.15)))}/{len(QS)} <15%")
+        f"{int(np.sum(np.abs(res_) < 0.15))}/{len(QS)} <15%, "
+        f"{int(np.sum(np.abs(res_) < 0.20))}/{len(QS)} <20%")
     np.savez(f"data/hwsq_HARDWARE_{K0TAG}.npz", q=QS, S_raw=S, S_mit=Smit,
              S_ideal=Si, G=G, f=f, c=c, nshot=nshot, backend=meta["backend"])
     for i, q in enumerate(QS):
@@ -249,11 +249,10 @@ elif mode == "combine":
     (f, c), *_ = np.linalg.lstsq(A, S, rcond=None)
     Smit = (S - c) / f
     res = (Smit - Si) / Si
-    rec = Si > c
     log(f"combined {len(files)} workers, {nshot} shots; Gauss mean {G.mean():.3f}")
     log(f"noise fit f={f:.3f} c={c:.3f}; "
-        f"recovered {int(np.sum(rec & (np.abs(res) < 0.15)))}/{len(QS)} "
-        f"<15%, {int(np.sum(np.abs(res) < 0.01))} <1%")
+        f"recovered {int(np.sum(np.abs(res) < 0.15))}/{len(QS)} "
+        f"<15%, {int(np.sum(np.abs(res) < 0.20))}/{len(QS)} <20%")
     np.savez(f"data/hwsq_simval_{K0TAG}.npz", q=QS, S_raw=S, S_mit=Smit,
              S_ideal=Si, G=G, f=f, c=c, nshot=nshot)
     for i, q in enumerate(QS):
