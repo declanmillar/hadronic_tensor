@@ -22,6 +22,11 @@ for path, name, col in DEV:
     g = np.array([float(d[f"G{n}"]) for n in range(50)])
     a1.plot(range(50), g, "o-", color=col, ms=3, lw=0.8,
             label=f"{name} (mean {g.mean():.2f})")
+# ibm_kingston: witnesses reconstructed from the boosted-packet S(q^1) run's
+# own bitstrings (sites in Z, links in X natively give the Gauss stabilizers).
+gk = np.load("data/hwsq_HARDWARE_k1.26.npz")["G"]
+a1.plot(range(50), gk, "s-", color="C2", ms=3, lw=0.8,
+        label=f"ibm\\_kingston$^\\dagger$ (mean {gk.mean():.2f})")
 a1.axhline(1.0, color="0.4", lw=0.8, ls="--")
 a1.axhline(0.0, color="0.7", lw=0.6)
 a1.set_xlabel("site $n$")
