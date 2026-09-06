@@ -18,6 +18,8 @@ exact production circuit builders:
                       over tier 2 is one ancilla + one CZ + basis rotation.
                       t=0 is a known-truth slice that calibrates the global
                       damping factor kappa (cf. scripts/hw_t3_dryrun.py).
+                      Each time also uses a plain-evolution PUB for the
+                      single-current expectation <J0(v,t)>.
 
 Modes:
   audit [fez|torino]        offline: transpile all tiers against a fake
@@ -119,7 +121,7 @@ def build_tier(tier, lat, prep):
 # measures the per-(t,x) damping kappa_v(t), beta_v(t) at matched depth.
 # The Trotter segments transpile at optimization_level=1 (O3 would delete
 # the mirror's gates); prep+gadget transpiles once at O3 and is shared
-# verbatim by all five circuits.
+# verbatim by all five circuits.  Plain evolution uses its own mirror pair.
 MIRROR_EPS = 1e-8
 
 
@@ -128,11 +130,14 @@ def t3_obs(lat):
     for v in T3_PROBES:
         B = cur.charge_density(lat, v)
         obs += [(f"XB_{v}", with_ancilla(B, "X")),
-                (f"YB_{v}", with_ancilla(B, "Y")),
-                (f"B_{v}", with_ancilla(B, "I"))]
+                (f"YB_{v}", with_ancilla(B, "Y"))]
     obs += [("X", with_ancilla(SparsePauliOp("I" * lat.n_qubits), "X")),
             ("Y", with_ancilla(SparsePauliOp("I" * lat.n_qubits), "Y"))]
     return obs
+
+
+def t3_plain_obs(lat):
+    return [(f"B_{v}", cur.charge_density(lat, v)) for v in T3_PROBES]
 
 
 def t3_segments(lat, prep):
@@ -234,6 +239,12 @@ def audit(backend_name="fez"):
         log(f"tier 3 [{name}]: depth {tc.depth()}, 2q gates {two_q}, "
             f"2q depth {tc.depth(lambda i: i.operation.num_qubits == 2)}, "
             f"{nobs} observables, shots {SHOTS[3]}")
+    for name, t, tc, _ in t3_transpile(prep, segs, be):
+        two_q = sum(v for k, v in tc.count_ops().items()
+                    if k in ("cz", "ecr", "cx"))
+        log(f"tier 3 [{name}_plain]: depth {tc.depth()}, 2q gates {two_q}, "
+            f"2q depth {tc.depth(lambda i: i.operation.num_qubits == 2)}, "
+            f"{len(t3_plain_obs(lat))} observables, shots {SHOTS[3]}")
     log("audit done")
 
 
@@ -258,11 +269,26 @@ def submit(tier, backend_name=None):
             circ_names.append(name)
             circ_meta.append(dict(meta3, t=t,
                                   kind="mirror" if name.startswith("m")
-                                  else "phys"))
+                                  else "phys",
+                                  measurement_type="hadamard"))
             two_q = sum(v for k, v in tc.count_ops().items()
                         if k in ("cz", "ecr", "cx"))
             log(f"pub {name}: 2q gates {two_q}, depth {tc.depth()}")
         obs_names = [[on for on, _ in obs]] * len(pubs)
+        plain_obs = t3_plain_obs(lat)
+        plain_isa = t3_transpile(prep, segs, be)
+        if T3_PART:
+            plain_isa = [e for e in plain_isa
+                         if e[0] in T3_PARTS[T3_PART]]
+        for name, t, tc, layout in plain_isa:
+            name = f"{name}_plain"
+            pubs.append((tc, [o.apply_layout(layout) for _, o in plain_obs]))
+            circ_names.append(name)
+            circ_meta.append(dict(meta3, t=t,
+                                  kind="mirror" if name.startswith("m")
+                                  else "phys",
+                                  measurement_type="plain_evolution"))
+            obs_names.append([on for on, _ in plain_obs])
     else:
         entries = build_tier(tier, lat, prep)
         isa = isa_transpile([c for _, c, _ in entries], be)
@@ -321,10 +347,11 @@ def analyze_t3(jobfile, metas, results):
     scripts/hw_t3_dryrun.py (t=0 row reproduces the truth grid to 2e-16):
       <X (x) B_v> = id_b <X_anc> + <X (x) c_b P_b>    (bare-anc subtraction)
       C = c_a (sx + i sy) + id_a (B - id_b) + id_b (A0 - id_a) + id_a id_b
-    Each t>0 slice is calibrated by its depth-matched mirror circuit, whose
-    exact truth is the t=0 slice (from data/hw_t3_ideal50_*.npz):
+    The Hadamard and plain-evolution PUBs are each calibrated by their own
+    depth-matched mirror circuit, whose exact truth is the t=0 slice (from
+    data/hw_t3_ideal50_*.npz):
       kappa_v(t) = sx_mirror(t,v) / sx_ideal(0,v)    ancilla-sector damping
-      beta_v(t)  = (B_mirror(t,v)-1/2)/(B_ideal(0,v)-1/2)  Z-sector damping
+      beta_v(t)  = (B_plain_mirror(t,v)-1/2)/(B_ideal(0,v)-1/2)
     The t=0 slice is its own mirror.
 
     metas/results are LISTS: multiple jobs covering the same circuits are
@@ -357,8 +384,12 @@ def analyze_t3(jobfile, metas, results):
             sd = np.atleast_1d(np.asarray(pub.data.stds, dtype=float))
             d = {n: (float(v), float(s)) for n, v, s in zip(names, ev, sd)}
             g = lambda tg, k: np.array([d[f"{tg}_{v}"][k] for v in T3_PROBES])
-            r = {"XB": g("XB", 0), "YB": g("YB", 0), "B": g("B", 0),
-                 "XBe": g("XB", 1), "YBe": g("YB", 1), "Be": g("B", 1),
+            if name.endswith("_plain"):
+                bn[name.removesuffix("_plain")].update(
+                    B=g("B", 0), Be=g("B", 1))
+                continue
+            r = {"XB": g("XB", 0), "YB": g("YB", 0),
+                 "XBe": g("XB", 1), "YBe": g("YB", 1),
                  "X": d["X"][0], "Y": d["Y"][0],
                  "Xe": d["X"][1], "Ye": d["Y"][1]}
             r["sx"] = r["XB"] - id_b * r["X"]
@@ -474,7 +505,7 @@ def t3check(backend_name="fez"):
     idl = np.load(f"data/hw_t3_ideal_{K0TAG}.npz")
     irow = {0.0: 0, 0.5: 1, 1.0: 2}
     names = [f"{tag}_{v}" for v in idl["probes"]
-             for tag in ("XB", "YB", "B")] + ["X", "Y"]
+             for tag in ("XB", "YB")] + ["X", "Y"]
     sim = AerSimulator(method="matrix_product_state",
                        matrix_product_state_truncation_threshold=1e-8,
                        max_parallel_threads=4)
