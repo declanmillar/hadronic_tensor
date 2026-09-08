@@ -83,6 +83,62 @@ def _sur_has(sur, t: float) -> bool:
     return bool(len(ts)) and abs(ts[int(np.argmin(np.abs(ts - t)))] - t) <= 1e-6
 
 
+def _step_qpdf(res, bits_path, lat, center, refs, shots, log):
+    """The width scan reduced end to end: bits -> connected h(m) -> <x>, each
+    card against its ideal.  Sampling those pubs and never checking what they
+    reduce to is how the preset stayed unanalysable for as long as it did."""
+    from . import analyze as A
+    from . import circuits as C
+    by = A.qpdf_bits_by_card([bits_path])
+    if not by:
+        return
+    ref = None
+    if refs:
+        try:
+            ref = np.load(refs, allow_pickle=True)
+        except Exception:
+            ref = None
+    rows, bad = {}, []
+    for card in sorted(by):
+        vac = A.qpdf_vacuum_card(card, by)
+        if vac is None:
+            continue                                   # a vacuum card is the subtrahend
+        try:
+            k0 = C.load_card(card)["block"]["k0"]
+            r = A.qpdf_reduce(by[card], lat, center, k0, vac_bits_by_setting=by[vac], seed=1)
+        except Exception as e:
+            bad.append(f"{card}: {type(e).__name__}: {e}")
+            continue
+        row = {"x": r["x"], "x_err": r["x_err"], "norm": r["norm"], "vacuum": vac,
+               "h0_measured": r["h0_measured"]}
+        key = _qpdf_ref_key(card)
+        if ref is not None and f"{key}_x" in ref.files:
+            xr = float(ref[f"{key}_x"])
+            row["x_ideal"], row["pull"] = xr, (r["x"] - xr) / max(r["x_err"], 1e-12)
+            if abs(row["pull"]) > 5.0:
+                bad.append(f"{card}: <x> {r['x']:.4f} vs ideal {xr:.4f} ({row['pull']:+.1f} sigma)")
+        if not r["h0_measured"]:
+            bad.append(f"{card}: no qZ pub, so h(0) is unmeasured")
+        rows[card] = row
+    if not rows:
+        return
+    pulls = [abs(v["pull"]) for v in rows.values() if "pull" in v]
+    res.add("qpdf", R.FAIL if bad else R.PASS,
+            f"{len(rows)} card(s) reduced at {shots} shots"
+            + (f", worst |pull| {max(pulls):.1f} sigma vs the ideal <x>" if pulls else
+               " (no reference file to compare against)")
+            + ("; " + "; ".join(bad[:3]) if bad else ""),
+            qpdf=rows)
+
+
+def _qpdf_ref_key(card: str) -> str:
+    tag = "relA" if card.startswith("relA") else "prod"
+    for part in card.split("_"):
+        if part.startswith("s") and part[1:].replace(".", "").isdigit():
+            return f"{tag}_s{float(part[1:]):.2f}"
+    return f"{tag}_vac"
+
+
 def _rehearse_times(specs, per_card: int = 1) -> list:
     """t = 0 plus the shortest evolved slice each card has: enough to exercise
     base, physics, mirror and the whole calibration path without paying for
@@ -98,7 +154,8 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         mode: str = "auto", require_real: bool = False, cache_dir=None, threads: int = 2,
         shots_scale: float = 1.0, budget: float = 180.0, rep_time: float = 250e-6,
         tol: float = 5e-3, times=None, wing_surrogate: str | None = None,
-        rehearse_shots: int = 4000, kappa_tol: float = 0.25, log=print) -> dict:
+        rehearse_shots: int = 4000, kappa_tol: float = 0.25,
+        refs: str = "data/qpdf_card_refs.npz", log=print) -> dict:
     """-> the record dict (also the return value of the CLI)."""
     res, t0 = Result(), time.time()
     steps = STEPS_FULL if level == "full" else STEPS_FAST
@@ -283,6 +340,7 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
                     + ("; no slices for " + ", ".join(missing) if missing else "")
                     + ("; " + "; ".join(bad[:3]) if bad else ""),
                     slices=len(out["slices"]), worst_kappa_dev=worst, rehearsal=per_card)
+            _step_qpdf(res, out["bits"], lat, emb.center, refs, rehearse_shots, log)
         except Exception as e:
             res.add("rehearse", R.FAIL, f"{type(e).__name__}: {str(e)[:200]}")
         finally:

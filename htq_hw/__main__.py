@@ -385,7 +385,7 @@ def cmd_acceptance(args):
                  require_real=args.require_real, cache_dir=args.cache, threads=args.threads,
                  budget=args.budget, rep_time=args.rep_time, tol=args.tol, times=args.times,
                  wing_surrogate=args.wing_surrogate, rehearse_shots=args.accept_shots,
-                 kappa_tol=args.kappa_tol, log=log)
+                 kappa_tol=args.kappa_tol, refs=args.refs, log=log)
     path = R.write_record(args.record, "acceptance", rec, rec["status"])
     print()
     print(R.summarize({"kind": "acceptance", **rec, "env": R.env_stamp(), "git": R.git_stamp()}))
@@ -615,6 +615,8 @@ def main(argv=None):
     ac.add_argument("--threads", type=int, default=2)
     ac.add_argument("--accept-shots", type=int, default=4000,
                     help="shots per pub in the level=full rehearsal (statistics, not physics)")
+    ac.add_argument("--refs", default="data/qpdf_card_refs.npz",
+                    help="ideal <x> references the rehearsed qpdf cards are checked against")
     ac.add_argument("--kappa-tol", type=float, default=0.25,
                     help="allowed |kappa(center) - 1| in the noiseless rehearsal")
     ac.add_argument("--wing-surrogate", default="data/wing_surrogate_{tag}.npz",
