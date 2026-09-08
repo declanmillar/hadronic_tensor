@@ -111,10 +111,15 @@ def cmd_report(args):
 
 
 def _ideal_template(args):
-    """Default to the grids as they are actually installed in the cards."""
+    """Default to the grids as they are actually installed in the cards.
+    With --preset the {card} placeholder is left for the per-card fill, since
+    a composed campaign spans several cards."""
     if args.ideal:
         return args.ideal
-    return str(C.CARD_DIR / "{card}" / "ideal_{family}.npz").replace("{card}", args.card or "{card}")
+    tpl = str(C.CARD_DIR / "{card}" / "ideal_{family}.npz")
+    if getattr(args, "preset", None):
+        return tpl
+    return tpl.replace("{card}", args.card)
 
 
 def _setup(args, basis=None, require_real=False):
@@ -137,7 +142,7 @@ def _setup(args, basis=None, require_real=False):
                              allow_transpiler=getattr(args, "allow_transpiler", False))
     if getattr(args, "preset", None):
         specs = CP.compose_presets(args.preset)
-        card = None                     # cards come from the specs
+        card = CP.load_cards(specs, None)       # {name: card} for the composed campaign
     else:
         specs = CP.manifest(times=args.times or CP.DEFAULT_TIMES, j1_mirrors=args.j1_mirrors,
                             dither=args.dither, im=args.im, dt_half=args.dt_half,
@@ -198,8 +203,9 @@ def cmd_check(args):
     times = [0.0] + list(args.times or (0.5, 1.0))
     t0 = time.time()
     try:
-        res = S.check(be, lat, card, emb, _ideal_template(args), times, args.families, args.basis, args.tol,
-                      args.cap, args.threads, args.cache, log=log)
+        res = S.check(be, lat, card, emb, _ideal_template(args), times, args.families, args.basis,
+                      args.tol, args.cap, args.threads, args.cache, log=log,
+                      specs=specs if getattr(args, "preset", None) else None)
     finally:
         print(f"\nper-family / per-readout worst |diff| ({time.time() - t0:.0f}s):")
         for tag, groups in S.LAST_GROUPS.items():

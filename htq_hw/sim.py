@@ -437,15 +437,51 @@ def write_ideal_grids(card, ns, center, families, times, out_template, **kw) -> 
 
 
 # ------------------------------------------------------------------ check
-def check(be, lat: Lattice, card: dict, emb: T.Embedding, ideal_template: str, times,
+def _as_cards(card) -> dict:
+    """One card dict, a {name: card} mapping, or None -> {name: card}."""
+    if card is None:
+        raise ValueError("no card: pass --card, or a preset whose specs name their cards")
+    if isinstance(card, dict) and "couplings" in card:
+        return {card.get("name", "card"): card}
+    if not card:
+        raise ValueError("empty card mapping")
+    return card
+
+
+def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
           families=("j0", "j1p1", "j1p2"), basis: str = "cz", tol: float = 5e-3, cap: int = 512,
-          threads: int = 2, cache_dir=None, seed: int = T.SEED, mirrors: bool = True, log=None) -> dict:
+          threads: int = 2, cache_dir=None, seed: int = T.SEED, mirrors: bool = True, log=None,
+          specs=None) -> dict:
     """Submission-path validation.  For each family: the ISA base (mapped back
     to the logical register) from |0> vs the ideal t = 0 row; then for every t
     the ISA block (mapped back through the base's final layout) from the
     cached prep state + logical gadget, physics vs the ideal row at t and
     mirror vs the t = 0 row.  Raises AssertionError above ``tol``.
-    -> {(family, name): max |diff|}."""
+
+    ``card`` is one card dict or a {name: card} mapping (a composed campaign);
+    with several cards every card is checked and the keys carry its name.
+    -> {(family, name) or (card, family, name): max |diff|}."""
+    cards = _as_cards(card)
+    if len(cards) > 1 or specs is not None:
+        out = {}
+        for cname, cdict in cards.items():
+            fams = families
+            if specs is not None:
+                want = {s.family for s in specs if (s.card or cname) == cname
+                        and s.family not in ("qpdf",)}
+                want |= {"j0"} if any(s.mirror for s in specs
+                                      if (s.card or cname) == cname) else set()
+                fams = tuple(sorted(want & set(families)))
+                if not fams:
+                    T._log(f"--- card {cname}: no checkable families (prep-only), skipped", log)
+                    continue
+            T._log(f"--- card {cname}: families {list(fams)}", log)
+            r = check(be, lat, cdict, emb, ideal_template, times, families=fams, basis=basis,
+                      tol=tol, cap=cap, threads=threads, cache_dir=cache_dir, seed=seed,
+                      mirrors=mirrors, log=log)
+            out.update({(cname,) + (k if isinstance(k, tuple) else (k,)): v for k, v in r.items()})
+        return out
+    card = next(iter(cards.values()))
     eta = card["couplings"]["eta"]
     big = lat.n_wires > STATEVECTOR_MAX_WIRES
     sim = make_simulator(lat.n_wires, cap=cap, threads=threads)
@@ -567,15 +603,19 @@ def relabel_pub(isa_pub: QuantumCircuit, initial_layout, n_wires: int):
     return out
 
 
-def rehearse(be, lat: Lattice, card: dict, emb: T.Embedding, specs, shots: dict, ideal_template: str,
+def rehearse(be, lat: Lattice, card, emb: T.Embedding, specs, shots: dict, ideal_template: str,
              out_dir: str, basis: str = "cz", noise=None, seed: int = 0, cap: int = 512, threads: int = 2,
              cache_dir=None, tag: str = "rehearsal", components=A.COMPONENTS, n_traj: int = 8,
-             log=None) -> dict:
+             log=None, wing_surrogate: str | None = None) -> dict:
     """Sample every pub (Aer, from the cached prep MPS when large), write
     fetch-format bits + metadata, run analyze -> slice files.
     ``noise`` = (p2, p1) enables one Pauli trajectory per pub.
+    ``card`` is one card dict or a {name: card} mapping (a composed campaign).
     -> {'bits': path, 'meta': path, 'slices': {(comp, t): path}}."""
-    pubs, info, bundles = CP.build_pub_circuits(be, lat, card, emb, specs, basis, cache_dir=cache_dir, log=log)
+    cards = _as_cards(card)
+    default_card = next(iter(cards.values())) if len(cards) == 1 else None
+    pubs, info, bundles = CP.build_pub_circuits(be, lat, default_card, emb, specs, basis,
+                                                cache_dir=cache_dir, log=log)
     big = lat.n_wires > STATEVECTOR_MAX_WIRES
     sim = make_simulator(lat.n_wires, cap=cap, threads=threads)
     rng = np.random.default_rng(seed)
@@ -586,12 +626,14 @@ def rehearse(be, lat: Lattice, card: dict, emb: T.Embedding, specs, shots: dict,
     for s in specs:
         qc = pubs[s.name]
         fam = "j0" if s.mirror else s.family
-        bnd = bundles[(card["name"], fam)]
+        cname = s.card or (default_card["name"] if default_card else "")
+        card_s = cards[cname]
+        bnd = bundles[(cname, fam)]
         if big:
             # split: cached prep state + logical gadget, then the ISA block + readout
-            if fam not in init_by_fam:
+            if (cname, fam) not in init_by_fam:
                 kind, off = CP.FAMILY_GADGET[fam]
-                ps = prep_mps(card, lat, emb.center, cache_dir, cap, threads=threads, log=log)
+                ps = prep_mps(card_s, lat, emb.center, cache_dir, cap, threads=threads, log=log)
                 gad = QuantumCircuit(lat.n_wires)
                 gad.h(lat.ancilla)
                 gad.compose(C.insertion_gadget(lat, kind, emb.center + off, "direct"), inplace=True)
@@ -600,7 +642,7 @@ def rehearse(be, lat: Lattice, card: dict, emb: T.Embedding, specs, shots: dict,
                 routed, fl_g = route_to_chain(gad, ps.perm, lat.n_wires)
                 q0.compose(routed, inplace=True)
                 q0.save_matrix_product_state(label="mps")
-                init_by_fam[fam] = (sim.run(q0).result().data()["mps"], fl_g)
+                init_by_fam[(cname, fam)] = (sim.run(q0).result().data()["mps"], fl_g)
             n = s.n_steps
             if n == 0:
                 body = C.readout_layer(QuantumCircuit(be.num_qubits), lat, bnd.base_layout, s.readout, s.anc_basis)
@@ -609,7 +651,7 @@ def rehearse(be, lat: Lattice, card: dict, emb: T.Embedding, specs, shots: dict,
                     T.assign_block(bnd, n, n * s.dt)[1 if s.mirror else 0]
                 body = C.readout_layer(blk, lat, bnd.blocks[n]["layout"], s.readout, s.anc_basis)
             rel = relabel_pub(body, bnd.base_layout, lat.n_wires)
-            mps_f, perm_f = init_by_fam[fam]
+            mps_f, perm_f = init_by_fam[(cname, fam)]
             arr = sample_bits(sim, rel, shots[s.name], mps_f, noise_t,
                               seed=int(rng.integers(2**31)), n_traj=n_traj, perm=perm_f)
         else:
@@ -628,7 +670,21 @@ def rehearse(be, lat: Lattice, card: dict, emb: T.Embedding, specs, shots: dict,
     import json
     with open(meta_path, "w") as f:
         json.dump(meta, f, indent=1)
-    slices = A.analyze([bits_path], ideal_template, os.path.join(out_dir, "slice_{comp}_t{t:.1f}.npz"),
-                       lat.ns, emb.center, components=components, eta=card["couplings"]["eta"],
-                       backend=meta["backend"], log=log)
+    # a composed campaign namespaces its pubs per card, so analyse one card at
+    # a time with that card's own prefix, grids and couplings
+    slices, presets = {}, {s.card or "": s.preset for s in specs}
+    for cname, cdict in cards.items():
+        prefix = CP.name_prefix(presets.get(cname, ""), cname) if len(cards) > 1 else None
+        out_t = os.path.join(out_dir, ("slice_{comp}_t{t:.1f}.npz" if len(cards) == 1
+                                       else f"{cname}_slice_{{comp}}_t{{t:.1f}}.npz"))
+        try:
+            got = A.analyze([bits_path], ideal_template, out_t, lat.ns, emb.center,
+                            components=components, eta=cdict["couplings"]["eta"],
+                            backend=meta["backend"], log=log, prefix=prefix, card=cname,
+                            wing_surrogate=wing_surrogate)
+        except ValueError as e:          # e.g. a card with only qpdf pubs
+            T._log(f"analyze skipped for {cname}: {e}", log)
+            continue
+        slices.update({(cname,) + (k if isinstance(k, tuple) else (k,)): v for k, v in got.items()}
+                      if len(cards) > 1 else got)
     return {"bits": bits_path, "meta": meta_path, "slices": slices, "job_id": meta["job_id"]}
