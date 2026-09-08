@@ -767,6 +767,197 @@ def ring_embeddings(g: Graph, ns: int, center: int = CENTER, max_cycles: int = 4
 
 
 # ------------------------------------------------------------------ embedding
+class EmbeddingError(ValueError):
+    """No structured embedding fits the device.
+
+    Raised rather than silently falling back to a transpiler-chosen layout:
+    that fallback abandons the ladder (569 vs 300 two-qubit gates per Trotter
+    step), leaves ``initial_layout`` unset so the layout-preservation
+    assertion is skipped, and thereby voids the shared physics/mirror skeleton
+    the whole mirror mitigation rests on.  Carries diagnostics so the operator
+    can see WHY it does not fit.  Subclasses ValueError so callers that caught
+    the previous failure mode keep working."""
+
+    def __init__(self, msg, diagnostics=None):
+        super().__init__(msg)
+        self.diagnostics = diagnostics or {}
+
+
+def operational_graph(be, exclude_qubits=(), exclude_edges=(), max_2q_error=None,
+                      max_readout_error=None, log=None):
+    """Coupling graph restricted to hardware we are willing to use.
+
+    Drops qubits and edges the backend marks non-operational, anything the
+    caller excludes, and (when thresholds are given) anything whose calibrated
+    error is too high.  -> (Graph, report dict).  Real devices always have some
+    disabled elements, so every embedding search should start here rather than
+    from the pristine coupling map."""
+    g0 = Graph.from_backend(be)
+    dead_q, dead_e, reasons = set(exclude_qubits), {tuple(sorted(e)) for e in exclude_edges}, {}
+    for q in dead_q:
+        reasons[f"q{q}"] = "excluded by request"
+    for e in dead_e:
+        reasons[f"e{e}"] = "excluded by request"
+    props = None
+    try:
+        props = be.properties()
+    except Exception:
+        props = None
+    if props is not None:
+        for q in range(g0.n):
+            try:
+                if not props.is_qubit_operational(q):
+                    dead_q.add(q); reasons[f"q{q}"] = "not operational"
+                elif max_readout_error is not None and props.readout_error(q) > max_readout_error:
+                    dead_q.add(q); reasons[f"q{q}"] = f"readout {props.readout_error(q):.3g}"
+            except Exception:
+                pass
+        for u in range(g0.n):
+            for v in g0.adj[u]:
+                if u >= v:
+                    continue
+                for gate in ("cz", "ecr", "cx", "rzz"):
+                    try:
+                        if not props.is_gate_operational(gate, [u, v]):
+                            dead_e.add((u, v)); reasons[f"e{(u, v)}"] = f"{gate} not operational"
+                        elif max_2q_error is not None and props.gate_error(gate, [u, v]) > max_2q_error:
+                            dead_e.add((u, v)); reasons[f"e{(u, v)}"] = f"{gate} error {props.gate_error(gate, [u, v]):.3g}"
+                    except Exception:
+                        continue
+                    break
+    edges = [(u, v) for u in range(g0.n) for v in g0.adj[u]
+             if u < v and u not in dead_q and v not in dead_q and (u, v) not in dead_e]
+    g = Graph(g0.n, edges)
+    report = {"n_qubits": g0.n, "dropped_qubits": sorted(dead_q), "dropped_edges": sorted(dead_e),
+              "reasons": reasons, "edges_before": g0.n_edges, "edges_after": g.n_edges,
+              "live_qubits": g0.n - len(dead_q), "properties": props is not None}
+    if dead_q or dead_e:
+        _log(f"operational graph: {len(dead_q)} qubit(s) and {len(dead_e)} edge(s) excluded "
+             f"({g.n_edges}/{g0.n_edges} edges live)", log)
+    return g, report
+
+
+def matching_deficit(g: Graph, cycle, extras=()):
+    """(unmatched pendant demands, spare free neighbours) for a candidate cycle.
+    0 deficit means every cycle site can own a private link qubit."""
+    in_cyc = set(cycle)
+    rows = list(cycle) + list(extras)
+    cols = sorted({w for v in rows for w in g.adj[v] if w not in in_cyc})
+    if not cols:
+        return len(rows), 0
+    m = _pendant_matching(g, list(cycle), extra_for=list(extras) if extras else None)
+    if m is not None:
+        return 0, len(cols) - len(rows)
+    # count how many demands a maximum matching can actually satisfy
+    import scipy.sparse as sp
+    from scipy.sparse.csgraph import maximum_bipartite_matching
+    col_ix = {w: j for j, w in enumerate(cols)}
+    data = [(i, col_ix[w]) for i, v in enumerate(rows) for w in g.adj[v] if w not in in_cyc]
+    if not data:
+        return len(rows), 0
+    mat = sp.csr_matrix((np.ones(len(data)), ([i for i, _ in data], [j for _, j in data])),
+                        shape=(len(rows), len(cols)))
+    match = maximum_bipartite_matching(mat, perm_type="column")
+    return int(np.sum(match < 0)), len(cols) - len(rows)
+
+
+def unit_cycles(g: Graph, length: int = 4, limit: int = 4000):
+    """Chordless cycles of ``length`` (the lattice faces) -- the growth seeds."""
+    out, seen = [], set()
+    for a in range(g.n):
+        for b in sorted(x for x in g.adj[a] if x > a):
+            for c in sorted(x for x in g.adj[b] if x > a and x != a):
+                for d in sorted(x for x in g.adj[c] if x > a and x not in (a, b)):
+                    if a in g.adj[d]:
+                        key = frozenset((a, b, c, d))
+                        if len(key) == 4 and key not in seen:
+                            seen.add(key)
+                            out.append([a, b, c, d])
+                            if len(out) >= limit:
+                                return out
+    return out
+
+
+def grow_cycles(g: Graph, ns: int, beam: int = 64, time_budget_s: float = 60.0,
+                seed: int = SEED, log=None):
+    """Beam search for simple cycles of exactly ``ns`` vertices on the ACTUAL
+    device graph.
+
+    Starts from lattice faces and repeatedly replaces one arc by a detour
+    (_ear_expansions), keeping the ``beam`` best partial cycles ranked by how
+    close they are to admitting a perfect pendant matching.  This replaces
+    enumerating idealized rectangles, of which exactly one fits a pristine
+    Nighthawk and none fit once a single element is disabled."""
+    import time
+    rng = np.random.default_rng(seed)
+    t0 = time.time()
+    frontier = [tuple(c) for c in unit_cycles(g)]
+    if not frontier:
+        return []
+    best_at = {}
+    seen = set()
+    while frontier and time.time() - t0 < time_budget_s:
+        nxt = []
+        for cyc in frontier:
+            for cand in _ear_expansions(g, list(cyc), max_len=ns):
+                key = frozenset(cand)
+                if len(cand) > ns or key in seen:
+                    continue
+                seen.add(key)
+                nxt.append(tuple(cand))
+        if not nxt:
+            break
+        scored = []
+        for c in nxt:
+            deficit, spare = matching_deficit(g, list(c))
+            scored.append((deficit, -spare, -len(c), rng.random(), c))
+            if len(c) == ns and deficit == 0:
+                best_at.setdefault(frozenset(c), list(c))
+        scored.sort()
+        frontier = [c for *_, c in scored[:beam]]
+        if len(best_at) >= beam:
+            break
+    out = list(best_at.values())
+    _log(f"grow_cycles: {len(out)} cycle(s) of length {ns} in {time.time() - t0:.1f}s", log)
+    return out
+
+
+def search_ladder(g: Graph, ns: int, center: int = CENTER, gauss_sites=None, beam: int = 64,
+                  time_budget_s: float = 60.0, max_embeddings: int = 8, seed: int = SEED,
+                  log=None):
+    """Ladder embeddings found on the real graph: an ns-cycle of matter sites,
+    a private pendant link qubit for each, and an ancilla adjacent to the
+    centre site.  Needs no grid coordinates and tolerates dead qubits/edges."""
+    out = []
+    gs = sorted(gauss_sites or [])
+    for cyc in grow_cycles(g, ns, beam=beam, time_budget_s=time_budget_s, seed=seed, log=log):
+        for k in range(len(cyc)):
+            v = cyc[k]
+            extra = [v] + [cyc[(k + int(n) - center) % ns] for n in gs]
+            m = _pendant_matching(g, cyc, extra_for=extra)
+            if m is None:
+                continue
+            pend, ancs = m
+            e = _ladder_embedding(cyc, pend, ancs[0], k, ns, center,
+                                  info={"source": "graph-search", "rot": k})
+            if gs:
+                e.info["gauss_ancillas"] = ancs[1:]
+            out.append(e)
+            if len(out) >= max_embeddings:
+                return out
+    return out
+
+
+def largest_feasible_ns(g: Graph, center: int = CENTER, ns_max: int = 50, ns_min: int = 40, **kw):
+    """Diagnostic for a device that cannot host ns_max: the largest even ns
+    that does fit.  Reported when an embedding fails, because dropping Ns is a
+    physics decision (every reference grid is Ns-specific), not a transpiler one."""
+    for ns in range(ns_max - (ns_max % 2), ns_min - 1, -2):
+        if search_ladder(g, ns, center=min(center, ns - 1), max_embeddings=1, **kw):
+            return ns
+    return None
+
+
 @dataclass
 class Embedding:
     """Logical wire i (0..2Ns-1 system, 2Ns ancilla) -> physical qubit."""
@@ -870,26 +1061,52 @@ def score_embedding(emb: Embedding, be) -> float:
 
 
 def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
-                     max_cycles: int = 4, log=None, gauss_sites=None) -> Embedding:
+                     max_cycles: int = 4, log=None, gauss_sites=None,
+                     allow_transpiler: bool = False, graph=None, beam: int = 64,
+                     time_budget_s: float = 60.0, seed: int = SEED) -> Embedding:
     """mode: auto | ring | ladder | grid | transpiler.  auto = ladder on a
-    square lattice (grid cycle if the ladder does not fit), ring on heavy-hex,
-    transpiler if nothing fits.  Ties broken by score_embedding."""
+    square lattice (grid cycle if the ladder does not fit), ring on heavy-hex.
+    Ties broken by score_embedding.
+
+    ``graph`` (from operational_graph) restricts the search to usable hardware.
+    ``allow_transpiler`` is FALSE by default: a transpiler-chosen layout
+    abandons the ladder and skips the layout-preservation assertion, so it must
+    be asked for explicitly rather than happening silently on a device with one
+    dead coupler.  Diagnostic commands pass True."""
     if mode == "transpiler":
         return Embedding("transpiler", ns, center, None)
-    g = Graph.from_backend(be)
+    g = graph if graph is not None else Graph.from_backend(be)
     grid = grid_coordinates(g)
     cands = []
-    if mode in ("auto", "ladder") and grid:
-        cands = grid_ladder(g, ns, center, coords=grid, gauss_sites=gauss_sites)
+    if mode in ("auto", "ladder"):
+        if grid:
+            cands = grid_ladder(g, ns, center, coords=grid, gauss_sites=gauss_sites)
+        if not cands:                       # templates need a pristine lattice; the graph search does not
+            cands = search_ladder(g, ns, center, gauss_sites=gauss_sites, beam=beam,
+                                  time_budget_s=time_budget_s, seed=seed, log=log)
     if not cands and mode in ("auto", "grid") and grid:
         cands = grid_cycle(g, ns, center, coords=grid)
     if not cands and (mode == "ring" or (mode == "auto" and not grid)):
         cands = ring_embeddings(g, ns, center, max_cycles=max_cycles)
     if not cands:
-        if mode == "auto":
-            _log("no structured embedding fits; falling back to the transpiler", log)
+        diag = {"ns": ns, "center": center, "live_qubits": sum(1 for a in g.adj if a),
+                "edges": g.n_edges, "needed_qubits": 2 * ns + 1, "mode": mode}
+        try:
+            diag["largest_feasible_ns"] = largest_feasible_ns(
+                g, center, ns_max=ns, beam=max(16, beam // 2), time_budget_s=time_budget_s / 2)
+        except Exception:
+            pass
+        if allow_transpiler:
+            _log(f"no structured embedding fits ({diag}); falling back to the transpiler", log)
             return Embedding("transpiler", ns, center, None)
-        raise ValueError(f"no {mode} embedding of Ns={ns} on {backend_label(be)}")
+        raise EmbeddingError(
+            f"no {mode} embedding of Ns={ns} on {backend_label(be)}: needs {2 * ns + 1} qubits, "
+            f"{diag['live_qubits']} live with {g.n_edges} edges"
+            + (f"; largest feasible Ns is {diag['largest_feasible_ns']}"
+               if diag.get("largest_feasible_ns") else "")
+            + ". Refusing to fall back to a transpiler layout (it doubles the two-qubit count and "
+              "voids the physics/mirror skeleton); pass allow_transpiler=True to override.",
+            diagnostics=diag)
     for e in cands:
         e.validate(g)
     scored = sorted(((score_embedding(e, be), i, e) for i, e in enumerate(cands)),
@@ -897,6 +1114,8 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
     best = scored[0][2]
     best.info["score"] = scored[0][0]
     best.info["n_candidates"] = len(cands)
+    best.info["redundancy"] = len({tuple(e.layout) for e in cands})
+    best.info["spare_qubits"] = g.n - len(set(best.layout or []))
     _log(f"embedding {best.summary()} (score {scored[0][0]:.4g}, "
          f"{len(cands)} candidates)", log)
     return best

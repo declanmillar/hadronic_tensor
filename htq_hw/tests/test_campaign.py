@@ -65,7 +65,9 @@ def _small_pubs(basis="cz", ns=6, times=(0.5, 1.0), target="grid:4x5"):
     lat = Lattice(ns)
     center = ns // 2 - 1
     be = T.resolve_backend(target, fractional=(basis == "rzz"))
-    emb = T.choose_embedding(be, ns, center)
+    # Ns=4 on heavy-hex has no structured embedding (girth 12); this test
+    # exercises submit/fetch, so the transpiler layout is explicitly allowed
+    emb = T.choose_embedding(be, ns, center, allow_transpiler=True)
     specs = CP.manifest(times=times)
     pubs, info, bundles = CP.build_pub_circuits(be, lat, card, emb, specs, basis)
     return card, lat, center, be, emb, specs, pubs, info, bundles

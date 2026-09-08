@@ -82,10 +82,12 @@ def test_choose_embedding_modes():
     free = [w for w in g.neighbors(e.layout[48]) if w not in set(e.layout[:100])]
     assert e.layout[100] in free and g.degree(e.layout[48]) == 3
     nighthawk = T.resolve_backend("fake:nighthawk")
-    assert T.choose_embedding(nighthawk, 58, 28).kind == "grid"
+    # the graph search finds a genuine LADDER at Ns=58 (117 of 120 qubits) where
+    # the rectangle templates could only manage a routed grid cycle
+    assert T.choose_embedding(nighthawk, 58, 28).kind == "ladder"
     assert T.choose_embedding(nighthawk, 50, 24, mode="transpiler").layout is None
-    with pytest.raises(ValueError):
-        T.choose_embedding(nighthawk, 60, 29, mode="ladder")
+    with pytest.raises(T.EmbeddingError):        # a ValueError subclass
+        T.choose_embedding(nighthawk, 60, 29, mode="ladder", time_budget_s=5)
 
 
 def test_validate_negative():

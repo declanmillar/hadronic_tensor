@@ -1,60 +1,81 @@
 {
- "note": "ideal_<family>.npz: noiseless hardware-Trotterized calibration grids (hw_cal_grids key set). kappa divides the t=0 row only; later rows validate.",
- "installed": "2026-09-04T00:57:46",
- "families": {
-  "j0": {
-   "source": "data/hw_cal_relA_ns50_j0_k1.26_s0.75.npz",
-   "times": [
-    0.0,
-    0.5,
-    1.0,
-    1.5,
-    2.0,
-    2.5,
-    3.0
-   ],
-   "id_a": 0.5,
-   "c_a": -0.5,
-   "insert_1pt": 0.5683912223194286,
-   "H_prep": -61.74993318020504,
-   "center": 24,
-   "replaced_htq_routed_grid": "the replaced local grid was INVALID: it was generated before the card-couplings fix, i.e. evolved with the production Hamiltonian (0.7, 1.1, 1.3) instead of relA's (0.4, 1.4, 2.3); the disagreement of 0.30 at t=2 is what exposed the bug",
-   "shared_times": 7,
-   "max_abs_diff_vs_htq_routed": null
-  },
-  "j1p1": {
-   "source": "data/hw_cal_relA_ns50_j1p1_k1.26_s0.75.npz",
-   "times": [
-    0.0,
-    0.5,
-    1.0,
-    1.5,
-    2.0,
-    2.5,
-    3.0
-   ],
-   "id_a": 0.0,
-   "c_a": 0.575,
-   "insert_1pt": 0.0010309723749902053,
-   "H_prep": -61.74993318020504,
-   "center": 24
-  },
-  "j1p2": {
-   "source": "data/hw_cal_relA_ns50_j1p2_k1.26_s0.75.npz",
-   "times": [
-    0.0,
-    0.5,
-    1.0,
-    1.5,
-    2.0,
-    2.5,
-    3.0
-   ],
-   "id_a": 0.0,
-   "c_a": -0.575,
-   "insert_1pt": 0.0010309723749902053,
-   "H_prep": -61.74993318020504,
-   "center": 24
+  "note": "ideal_<family>.npz: noiseless hardware-Trotterized calibration grids (hw_cal_grids key set). kappa divides the t=0 row only; later rows validate.",
+  "installed": "2026-09-04T00:57:46",
+  "families": {
+    "j0": {
+      "source": "data/hw_cal_relA_ns50_j0_k1.26_s0.75.npz",
+      "times": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0
+      ],
+      "id_a": 0.5,
+      "c_a": -0.5,
+      "insert_1pt": 0.5683912223194286,
+      "H_prep": -61.74993318020504,
+      "center": 24,
+      "replaced_htq_routed_grid": "the replaced local grid was INVALID: it was generated before the card-couplings fix, i.e. evolved with the production Hamiltonian (0.7, 1.1, 1.3) instead of relA's (0.4, 1.4, 2.3); the disagreement of 0.30 at t=2 is what exposed the bug",
+      "shared_times": 7,
+      "max_abs_diff_vs_htq_routed": null
+    },
+    "j1p1": {
+      "source": "data/hw_cal_relA_ns50_j1p1_k1.26_s0.75.npz",
+      "times": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0
+      ],
+      "id_a": 0.0,
+      "c_a": 0.575,
+      "insert_1pt": 0.0010309723749902053,
+      "H_prep": -61.74993318020504,
+      "center": 24
+    },
+    "j1p2": {
+      "source": "data/hw_cal_relA_ns50_j1p2_k1.26_s0.75.npz",
+      "times": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0
+      ],
+      "id_a": 0.0,
+      "c_a": -0.575,
+      "insert_1pt": 0.0010309723749902053,
+      "H_prep": -61.74993318020504,
+      "center": 24
+    },
+    "j0d": {
+      "source": "data/hw_cal_relA_ns50_j0d_k1.26_s0.75.npz",
+      "sha256": "2a37cc075583fc035ba49ed2fdd39a9baeb848c1ea58b363dcaaf0bc68ed3fe2",
+      "installed": "2026-09-08T11:35:06",
+      "times": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0
+      ],
+      "id_a": -0.5,
+      "c_a": -0.5,
+      "insert_1pt": -0.5672468794031793,
+      "H_prep": -61.74993317183874,
+      "center": 25,
+      "block_center": 24,
+      "note": "dither family: J0 inserted at site 25 with the packet block still centred at 24, the minimal circuit perturbation that tests whether the packet-region bias is circuit-specific. t<=3 as for the other relA families; the wing target beyond that comes from data/wing_surrogate_relA.npz."
+    }
   }
- }
 }
