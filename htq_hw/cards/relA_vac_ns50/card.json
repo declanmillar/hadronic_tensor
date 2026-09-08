@@ -1,0 +1,56 @@
+{
+ "name": "relA_vac_ns50",
+ "description": "relA coupling point: variational vacuum only (no wavepacket block), 3-layer ansatz on the |-> link reference trained at Ns=6; the W00 vacuum reference state for the vac-w00 preset (insertion at site 24).",
+ "couplings": {
+  "m0": 0.4,
+  "g2": 1.4,
+  "eta": 2.3
+ },
+ "dt": 0.5,
+ "ns": 50,
+ "center": 24,
+ "link_ref": "-",
+ "state": "vacuum",
+ "vacuum": {
+  "n_layers": 3,
+  "trained_ns": 6,
+  "link_ref": "-",
+  "thetas": [
+   0.6094702820931317,
+   0.4547887898927167,
+   1.2905404595768504,
+   -1.4377953765196678,
+   -0.6188001300103796,
+   -0.7860123614794233,
+   -0.22581914268551592,
+   -0.38000636698717033,
+   -0.7153236626832993,
+   -0.3758022100752573,
+   0.0026334090829402087,
+   -0.39022455078143453
+  ],
+  "layer_order": [
+   "even_hop",
+   "odd_hop",
+   "mass",
+   "gauge"
+  ],
+  "fidelity": 0.9999414973657731,
+  "source": "data/vac_relA.npz"
+ },
+ "block": {
+  "n_layers": 0,
+  "offsets": [],
+  "kinds": [
+   "cur",
+   "hop",
+   "site",
+   "link"
+  ],
+  "vec": [],
+  "k0": 0.0,
+  "sigma_x": 0.0,
+  "fidelity": 1.0,
+  "source": "none (vacuum state)"
+ }
+}

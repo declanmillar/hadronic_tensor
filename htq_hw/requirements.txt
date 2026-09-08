@@ -1,0 +1,7 @@
+# htq_hw runtime + test dependencies (pinned to the versions used for the M1 counts)
+qiskit==2.5.0
+qiskit-aer==0.17.2
+qiskit-ibm-runtime==0.47.0
+numpy==2.4.6
+scipy==1.18.0
+pytest==9.1.1
