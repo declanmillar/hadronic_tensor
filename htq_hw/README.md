@@ -152,7 +152,7 @@ prep-only qPDF pubs, mirrors >= 3e4; `--weighting kappa` keeps the
 vac-w00 12.5, qpdf-scan 13.3), stretch 18.0 min, contingency 33.5 min at
 250 us per shot, 4.16e7 shots.
 
-### 4.1 qpdf-scan: readout bases and estimator
+### 4.1 qpdf-scan: readout bases, estimator and reduction
 
 The bilinear for separation z (htensor/quasipdf.py `wilson_bilinear`) is
 O_R = (X_a Z..Z X_b + Y_a Z..Z Y_b)/2, O_I = (X_a Z..Z Y_b - Y_a Z..Z X_b)/2
@@ -164,7 +164,7 @@ for each m the four settings XX, YY, XY, YX give
 h(+2m) = (<qXX> + <qYY>)/2 + i(<qXY> - <qYX>)/2 and
 h(-2m) = (<qXX> + <qYY>)/2 + i(<qYX> - <qXY>)/2 (the string product of the
 +-1 outcomes between and including the two ends, `analyze.qpdf_term`).
-20 prep-only pubs per card cover z in [-10, 10]; the same 20 on the
+21 prep-only pubs per card cover z in [-10, 10]; the same 21 on the
 matching vacuum card give the connected (vacuum-subtracted) values.  The
 reported quantity follows the reference convention of
 scripts/quasipdf_analysis.py and data/qpdf_card_refs.npz:
@@ -176,10 +176,37 @@ with C_R = <O_R>, C_I = <O_I> the Wilson-line bilinears, i.e.
 A = conj(h)/2 for the raw h built above (`analyze.qpdf_amplitude`;
 `analyze.qpdf_h_of_m` lays the values out on the same-sublattice grid
 h(m) = A(2m), m = -5..5, matching the `<card>_h` keys of the reference
-file).  A(0) comes from the Z-readout reference pub of the same card.  The
-staggered taste phase (-1)^m and the window are applied downstream.
+file).
+
+A(0) = <n(c)> has its own preparation-only pub, `qZ` (every qubit in Z).
+It cannot be taken from the t = 0 Hadamard-test reference: that pub carries
+the insertion gadget, so its marginal density is the ancilla-average of two
+states rather than this state's.  Four of the eight cards have no t = 0
+reference pub at all.  Since the Gaussian window weights m = 0 most heavily,
+getting it from the wrong circuit would bias every <x>.
+
+The reduction, `analyze --qpdf`, closes the chain:
+
+```
+PYTHONPATH=. python -m htq_hw analyze data/hw/htq_bits_*.npz --qpdf \
+    --out data/hw/qpdf_{card}.npz --refs data/qpdf_card_refs.npz
+```
+
+It groups the pubs by card, pairs each width card with the vacuum card of
+the *same couplings* (subtracting the other one would leave a coupling-sized
+offset), applies the taste phase (-1)^m and the sigma_m = 5 window, Fourier
+transforms against P = k0 per site, normalizes on x in [-0.5, 1.5] and takes
+the first moment.  The error on <x> is resampled from the h errors (400
+draws) rather than propagated, since <x> is a ratio of integrals of a Fourier
+sum.  Validated end to end at Ns = 50: 21 + 21 rehearsed pubs at 2e4 shots
+give <x> = 0.3913 +- 0.0042 against the ideal 0.3891 (0.5 sigma), with the
+width scan itself spanning 0.389 -> 0.346, so the sigma_k^2 slope is a ~10
+sigma effect on shot noise alone.  These are the shallowest circuits in the
+campaign (872-gate preparation, no Trotter), so they are also the least
+damped.
+
 Eight cards (prod and relA at sigma_x = 0.75, 1.00, 1.50 plus the two
-vacuum cards): 160 pubs, 13.3 min at 2e4 shots.
+vacuum cards): 168 pubs, ~14 min at 2e4 shots.
 
 ### 4.2 gauss-midcircuit (risk-gated)
 
@@ -292,7 +319,7 @@ Steps, each a PASS/WARN/FAIL line in the record:
 | target | with `--require-real`, a stand-in silently substituted for the named device |
 | embedding | no ladder/ring on the *operational* graph, or redundancy < 2 (one dead qubit away from a transpiler fallback) |
 | cards | a card whose ideal grids are missing, have no t = 0 row, or stop short of its slices with no wing surrogate |
-| circuits | any of the 693 pubs failing to build, or a physics/mirror skeleton mismatch |
+| circuits | any of the 701 pubs failing to build, or a physics/mirror skeleton mismatch |
 | plan | a shot plan over budget, or a mirror below the shot floor |
 | check (full) | an ISA circuit whose logical expectation values disagree with the ideal grids above `--tol` |
 | rehearse (full) | a card that produces no slices, or a noiseless kappa(centre) off 1 by more than `--kappa-tol` |

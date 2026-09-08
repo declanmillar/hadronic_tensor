@@ -229,3 +229,45 @@ def test_dither_family_uses_its_own_ideal_grid(tmp_path):
         assert np.abs(z["C_cal"][0].real - ci)[ok].max() < 0.08, str(z["component"])
     ok = np.abs(g0.sx_ideal0("J0")) > 0.1
     assert abs(zd["kappa_v"][0][ok].mean() - kappa["Z"]) < 0.05        # shared j0 mirror
+
+
+# ---- quasi-PDF reduction ---------------------------------------------------
+
+def test_qpdf_distribution_reproduces_the_reference_transform():
+    """The convention, pinned against the pipeline that produced the ideal
+    references: taste phase (-1)^m, Gaussian window sigma_m = 5, FT against
+    P = k0 per site, normalize then take the moment.  The stored h already
+    carries the phase, so it is removed before feeding it back in."""
+    import pathlib
+    p = pathlib.Path("data/qpdf_card_refs.npz")
+    if not p.exists():
+        pytest.skip("ideal qpdf references not present (repo data/)")
+    z = np.load(p, allow_pickle=True)
+    ms = np.asarray(z["ms"])
+    for key in ("prod_s0.75", "relA_s1.50"):
+        h = np.asarray(z[f"{key}_h"]) * (-1.0) ** ms
+        qt, norm, x = A.qpdf_distribution(h, ms, float(z[f"{key}_k0"]), xs=np.asarray(z["xs"]))
+        assert np.allclose(qt, np.asarray(z[f"{key}_qt"]), atol=1e-12)
+        assert norm == pytest.approx(float(z[f"{key}_norm"]), abs=1e-12)
+        assert x == pytest.approx(float(z[f"{key}_x"]), abs=1e-12)
+
+
+def test_qpdf_bits_grouping_and_vacuum_pairing():
+    cards = ["prod_k1.26_s0.75_ns50", "prod_vac_ns50", "relA_k1.26_s1.50_ns50", "relA_vac_ns50"]
+    assert A.qpdf_vacuum_card(cards[0], cards) == "prod_vac_ns50"
+    assert A.qpdf_vacuum_card(cards[2], cards) == "relA_vac_ns50"      # never the prod vacuum
+    assert A.qpdf_vacuum_card("prod_vac_ns50", cards) is None
+    assert A.qpdf_vacuum_card(cards[2], ["prod_vac_ns50"]) is None     # no wrong-coupling fallback
+
+
+def test_qpdf_bits_by_card_round_trip(scratch, tmp_path):
+    from htq_hw import campaign as CP
+    specs = CP.qpdf_specs("prod_k1.26_s0.75_ns50") + CP.qpdf_specs("prod_vac_ns50")
+    names = [s.name for s in specs]
+    path = str(tmp_path / "htq_bits_x.npz")
+    np.savez(path, job_id="x", backend="b", pub_names=np.array(names),
+             **{n: np.zeros((4, 101), np.uint8) for n in names})
+    by = A.qpdf_bits_by_card([path])
+    assert set(by) == {"prod_k1.26_s0.75_ns50", "prod_vac_ns50"}
+    assert len(by["prod_vac_ns50"]) == 21                       # 4 kinds x 5 separations + qZ
+    assert "qZ" in by["prod_k1.26_s0.75_ns50"] and "qXYm3" in by["prod_vac_ns50"]

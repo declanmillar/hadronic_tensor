@@ -35,6 +35,7 @@ import numpy as np
 
 from . import DT, ETA
 from .campaign import parse_pub_name, pub_name, split_prefix
+from . import circuits as C
 from .model import Lattice
 
 KAP_GUARD = 0.02
@@ -678,6 +679,81 @@ def qpdf_amplitude(bits_by_setting: dict, lat: Lattice, center: int, ms=(1, 2, 3
             err = float(np.hypot(err, rv["J0_err"][center % lat.ns]))
         out[0] = (complex(val), complex(err))
     return out
+
+
+def qpdf_bits_by_card(bits_paths) -> dict:
+    """Every qpdf pub in the given bits files, grouped as
+    {card: {setting: array}}.  The card is the pub prefix's card part, so a
+    composed campaign's eight width cards separate on their own."""
+    out = {}
+    for path in bits_paths:
+        z = np.load(path, allow_pickle=True)
+        for name in [str(x) for x in z["pub_names"]]:
+            p = parse_pub_name(name)
+            if p["family"] != "qpdf":
+                continue
+            pre = (p["prefix"] or "").rstrip(":")
+            # 'preset.card:' -- the card name itself contains dots (k1.26, s0.75),
+            # so the split is on the first one, not the last
+            card = pre.split(".", 1)[1] if "." in pre else pre
+            out.setdefault(card, {})[p["readout"]] = z[name]
+    return out
+
+
+def qpdf_vacuum_card(card: str, available) -> str | None:
+    """The vacuum card whose subtraction makes another card's bilinears
+    connected: same couplings, so 'relA' with 'relA', 'prod' with 'prod'.
+    Subtracting the wrong one would leave a coupling-sized offset in h(0)."""
+    if "_vac_" in card or card.endswith("_vac"):
+        return None
+    tag = "relA" if card.startswith("relA") else "prod"
+    cands = [c for c in available if "_vac" in c and c.startswith(tag)]
+    return cands[0] if cands else None
+
+
+QPDF_SIG_M = 5.0                      # paper window (scripts/qpdf_card_refs.py:42)
+QPDF_XS = np.linspace(-0.5, 1.5, 401)
+
+
+def qpdf_distribution(h, ms, k0: float, sig_m: float = QPDF_SIG_M, xs=QPDF_XS):
+    """Connected same-sublattice h(m) -> the quasi-distribution and its first
+    moment, in the measured convention of scripts/quasipdf_analysis.py: taste
+    phase (-1)^m, Gaussian window sigma_m, Fourier transform against P = k0
+    per spatial site, normalize then take the moment on x in [-0.5, 1.5].
+    -> (qt, norm, <x>)."""
+    ms = np.asarray(ms, float)
+    hh = np.asarray(h, complex) * (-1.0) ** ms
+    w = np.exp(-ms ** 2 / (2 * sig_m ** 2))
+    qt = np.array([(k0 / (2 * np.pi)) * np.sum(np.exp(1j * x * k0 * ms) * hh * w) for x in xs]).real
+    norm = float(np.trapezoid(qt, xs))
+    return qt, norm, float(np.trapezoid(xs * qt, xs) / norm)
+
+
+def qpdf_reduce(bits_by_setting: dict, lat: Lattice, center: int, k0: float, ms=(1, 2, 3, 4, 5),
+                vac_bits_by_setting: dict | None = None, sig_m: float = QPDF_SIG_M,
+                xs=QPDF_XS, n_boot: int = 400, seed: int = 0) -> dict:
+    """One card's qpdf pubs -> h(m), q(x) and <x> with shot errors.
+
+    The error on <x> is resampled rather than propagated: <x> is a ratio of
+    two integrals of a Fourier sum, so a linear propagation of the h errors
+    would misstate it.  ``n_boot`` draws of h from its own errors give the
+    spread directly."""
+    mfull = np.concatenate([-np.asarray(ms)[::-1], [0], np.asarray(ms)])
+    amps = qpdf_amplitude(bits_by_setting, lat, center, ms, vac_bits_by_setting,
+                          z_bits=bits_by_setting.get(C.QPDF_Z),
+                          vac_z_bits=(vac_bits_by_setting or {}).get(C.QPDF_Z))
+    h, herr = qpdf_h_of_m(amps, mfull)
+    qt, norm, xmean = qpdf_distribution(h, mfull, k0, sig_m, xs)
+    rng = np.random.default_rng(seed)
+    draws = []
+    for _ in range(n_boot):
+        hb = (h.real + rng.normal(0, np.abs(herr.real))) + 1j * (h.imag + rng.normal(0, np.abs(herr.imag)))
+        draws.append(qpdf_distribution(hb, mfull, k0, sig_m, xs)[2])
+    return {"ms": mfull, "h": h, "h_err": herr, "xs": np.asarray(xs), "qt": qt,
+            "norm": norm, "x": xmean, "x_err": float(np.std(draws)), "k0": float(k0),
+            "sigma_m": float(sig_m), "n_boot": int(n_boot),
+            "h0_measured": bool(C.QPDF_Z in bits_by_setting),
+            "vacuum_subtracted": bool(vac_bits_by_setting)}
 
 
 def qpdf_h_of_m(amplitudes: dict, ms=(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)):

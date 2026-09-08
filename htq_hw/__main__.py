@@ -21,6 +21,7 @@ submitted; real names only resolve a Target for transpilation.
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 import time
@@ -306,9 +307,63 @@ def cmd_fetch(args):
         CP.fetch(meta["job_id"], meta, args.out, log=log)
 
 
+def cmd_qpdf(args):
+    """The width scan's reduction: bilinears -> h(m) -> q(x) -> <x>, per card."""
+    import numpy as np
+    from . import analyze as A
+    by_card = A.qpdf_bits_by_card(args.bits)
+    if not by_card:
+        raise SystemExit(f"no qpdf pubs in {list(args.bits)}; the qpdf-scan preset produces them")
+    ref = None
+    if args.refs and pathlib.Path(args.refs).exists():
+        ref = np.load(args.refs, allow_pickle=True)
+    lat = Lattice(args.ns)
+    rows = []
+    for card in sorted(by_card):
+        if A.qpdf_vacuum_card(card, by_card) is None and "_vac" in card:
+            continue                                  # the vacuum is the subtrahend, not a row
+        vac = A.qpdf_vacuum_card(card, by_card)
+        if vac is None and not args.no_vacuum:
+            log(f"{card}: no matching vacuum card in these bits; run with --no-vacuum to reduce "
+                f"the disconnected bilinears anyway")
+            continue
+        cd = C.load_card(card)
+        center = _center_for(cd, args.ns)
+        k0 = args.k0 if args.k0 else cd.get("block", {}).get("k0")
+        if not k0:
+            log(f"{card}: no k0 on the card; pass --k0")
+            continue
+        r = A.qpdf_reduce(by_card[card], lat, center, k0, ms=tuple(args.ms),
+                          vac_bits_by_setting=by_card.get(vac) if vac else None, seed=args.seed)
+        r["card"], r["vacuum_card"] = card, vac or ""
+        path = args.out.format(card=card)
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        np.savez(path, **r)
+        key = _qpdf_ref_key(card)
+        dev = ""
+        if ref is not None and f"{key}_x" in ref.files:
+            xr = float(ref[f"{key}_x"])
+            dev = f"  ideal {xr:.4f}  ({(r['x'] - xr) / max(r['x_err'], 1e-12):+.1f} sigma)"
+        rows.append(f"{card:24} <x> = {r['x']:.4f} +- {r['x_err']:.4f}  "
+                    f"norm {r['norm']:.4f}  h(0) {r['h'][len(args.ms)].real:+.4f}"
+                    + ("" if r["h0_measured"] else " (NOT measured: no qZ pub)") + dev + f"  -> {path}")
+    print("\n".join(rows) if rows else "nothing reduced")
+
+
+def _qpdf_ref_key(card: str) -> str:
+    """'relA_k1.26_s0.75_ns50' -> 'relA_s0.75', the key in qpdf_card_refs.npz."""
+    tag = "relA" if card.startswith("relA") else "prod"
+    for part in card.split("_"):
+        if part.startswith("s") and part[1:].replace(".", "").isdigit():
+            return f"{tag}_s{float(part[1:]):.2f}"
+    return f"{tag}_vac"
+
+
 def cmd_analyze(args):
     from . import analyze as A
     from . import campaign as CP
+    if args.qpdf:
+        return cmd_qpdf(args)
     if args.list_prefixes:
         print("prefixes present:", A.available_prefixes(args.bits) or "(none: unprefixed pubs only)")
         return
@@ -530,6 +585,17 @@ def main(argv=None):
     an.add_argument("--wing-surrogate", default=None, metavar="NPZ",
                     help="wing-anchor target for slices whose ideal grid stops short "
                          "(scripts/wing_surrogate.py build)")
+    an.add_argument("--qpdf", action="store_true",
+                    help="reduce the qpdf-scan bilinears instead of the W slices: "
+                         "connected h(m) -> q(x) -> <x> per card")
+    an.add_argument("--out", default="data/hw/qpdf_{card}.npz", help="--qpdf output template")
+    an.add_argument("--ms", type=int, nargs="+", default=[1, 2, 3, 4, 5], help="--qpdf separations")
+    an.add_argument("--k0", type=float, default=None, help="--qpdf boost (default: from the card)")
+    an.add_argument("--refs", default="data/qpdf_card_refs.npz",
+                    help="--qpdf ideal references to compare against ('' to skip)")
+    an.add_argument("--no-vacuum", action="store_true",
+                    help="--qpdf: reduce without the vacuum subtraction (disconnected)")
+    an.add_argument("--seed", type=int, default=0)
     an.set_defaults(fn=cmd_analyze)
     ac = sub.add_parser("acceptance", help="validate everything and write a record; bundle requires it")
     ac.add_argument("--target", default="fake:nighthawk")

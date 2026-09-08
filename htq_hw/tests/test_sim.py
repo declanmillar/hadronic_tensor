@@ -146,3 +146,64 @@ def test_noise_transform_counts():
     assert ops["cz"] == 200 and sum(ops.get(g, 0) for g in ("x", "y", "z")) > 200
     out0 = S.noise_transform(qc, rng, 0.0, 0.0)
     assert out0.count_ops() == qc.count_ops()
+
+
+def test_qpdf_rehearsal_split_path_matches_the_whole_circuit(tmp_path, monkeypatch):
+    """qpdf pubs are preparation only: no ancilla, no insertion, no evolution.
+    At Ns=50 they are sampled from the cached prep MPS plus a readout layer,
+    a path that FAMILY_GADGET used to KeyError on.  Forcing that split path at
+    Ns=6, where the whole circuit still fits in a statevector, checks it
+    against the unsplit answer rather than merely that it runs."""
+    card = C.load_card()
+    lat = Lattice(6)
+    be = T.resolve_backend("grid:4x5")
+    emb = T.choose_embedding(be, 6, 2)
+    specs = CP.qpdf_specs(card["name"], preset="", ms=(1,))
+    assert {s.family for s in specs} == {"qpdf"} and len(specs) == 5   # 4 bilinears + qZ
+    shots = {s.name: 4000 for s in specs}
+    tpl = os.path.join(str(tmp_path), "ideal_{family}.npz")
+    S.write_ideal_grids(card, 6, 2, ("j0",), [0.0], tpl, threads=2)
+    kw = dict(basis="cz", seed=3, threads=2, cache_dir=str(tmp_path / "cache"), log=None)
+    whole = S.rehearse(be, lat, card, emb, specs, shots, tpl, str(tmp_path / "a"), **kw)
+    monkeypatch.setattr(S, "STATEVECTOR_MAX_WIRES", 4)          # force the prep-MPS split path
+    split = S.rehearse(be, lat, card, emb, specs, shots, tpl, str(tmp_path / "b"), **kw)
+    za = np.load(whole["bits"], allow_pickle=True)
+    zb = np.load(split["bits"], allow_pickle=True)
+    for s in specs:
+        kind, m = C.qpdf_setting(s.readout)
+        if kind is None:                                        # the qZ density pub
+            va, vb = (A.estimate_probes(z[s.name], lat, "Z")["J0"][2] for z in (za, zb))
+        else:
+            va, vb = (A.qpdf_term(z[s.name], lat, 2, m, +1).mean() for z in (za, zb))
+        assert abs(va - vb) < 6 / np.sqrt(shots[s.name])        # 3 sigma of the difference
+        assert abs(va) <= 1.0
+
+
+def test_qpdf_amplitudes_from_rehearsed_bits(tmp_path):
+    """The estimator end to end: sampled bits -> A(z) with the vacuum
+    subtracted, against the exact statevector value of the same bilinear."""
+    from qiskit.quantum_info import SparsePauliOp, Statevector
+    card = C.load_card()
+    lat = Lattice(6)
+    be = T.resolve_backend("grid:4x5")
+    emb = T.choose_embedding(be, 6, 2)
+    specs = CP.qpdf_specs(card["name"], preset="", ms=(1,))
+    shots = {s.name: 20000 for s in specs}
+    tpl = os.path.join(str(tmp_path), "ideal_{family}.npz")
+    S.write_ideal_grids(card, 6, 2, ("j0",), [0.0], tpl, threads=2)
+    out = S.rehearse(be, lat, card, emb, specs, shots, tpl, str(tmp_path / "q"), basis="cz",
+                     seed=5, threads=2, cache_dir=str(tmp_path / "cache"), log=None)
+    z = np.load(out["bits"], allow_pickle=True)
+    bits = {s.readout: z[s.name] for s in specs}
+    amps = A.qpdf_amplitude(bits, lat, 2, ms=(1,))
+    sv = Statevector(S.prep_state_circuit(card, lat, 2))
+    qa, qb = lat.site_qubit(2), lat.site_qubit(4)
+    def ev(pa, pb):
+        lbl = ["I"] * lat.n_wires
+        lbl[qa], lbl[qb] = pa, pb
+        for q in range(qa + 1, qb):
+            lbl[q] = "Z"
+        return sv.expectation_value(SparsePauliOp("".join(reversed(lbl)))).real
+    exact = 0.5 * (ev("X", "X") + ev("Y", "Y")) + 0.5j * (ev("X", "Y") - ev("Y", "X"))
+    got = amps[2][0]
+    assert abs(got - np.conj(exact) / 2) < 0.02

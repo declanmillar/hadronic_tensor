@@ -401,6 +401,9 @@ def qpdf_setting(m: int, kind: str) -> str:
     return f"q{kind}m{m}"
 
 
+QPDF_Z = "qZ"
+
+
 def qpdf_basis_map(lat: Lattice, center: int, m: int, kind: str) -> dict[int, str]:
     """Readout setting covering the Wilson-line bilinears psi-bar(z) W psi(0)
     for z = +2m and z = -2m at once (htensor/quasipdf.py:24-40): the centre
@@ -418,6 +421,24 @@ def qpdf_basis_map(lat: Lattice, center: int, m: int, kind: str) -> dict[int, st
             raise ValueError(f"z = {sign * 2 * m} leaves the ring at Ns = {lat.ns}")
         bm[lat.site_qubit(v)] = pe
     return bm
+
+
+def qpdf_setting(setting: str):
+    """'qXYm3' -> ('XY', 3);  'qZ' -> (None, None), the density setting that
+    supplies h(0) = <n(centre)> from the same preparation-only circuit."""
+    if setting == QPDF_Z:
+        return None, None
+    if not setting.startswith("q") or "m" not in setting:
+        raise ValueError(f"not a qpdf setting: {setting!r}")
+    return setting[1:3], int(setting.split("m")[1])
+
+
+def qpdf_readout_map(lat: Lattice, center: int, setting: str) -> dict[int, str]:
+    """Basis map of any qpdf setting, bilinear or density."""
+    kind, m = qpdf_setting(setting)
+    if kind is None:
+        return {q: "Z" for q in range(lat.n_qubits)}
+    return qpdf_basis_map(lat, center, m, kind)
 
 
 def basis_map(lat: Lattice, basis) -> dict[int, str]:

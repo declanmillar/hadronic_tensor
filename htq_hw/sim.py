@@ -629,14 +629,19 @@ def rehearse(be, lat: Lattice, card, emb: T.Embedding, specs, shots: dict, ideal
         cname = s.card or (default_card["name"] if default_card else "")
         card_s = cards[cname]
         bnd = bundles[(cname, fam)]
+        qpdf = s.family == "qpdf"
+        # a qpdf pub is preparation only: no ancilla, no insertion, no evolution,
+        # so its "gadget" is empty and its layout is the prep bundle's own
+        base_layout = bnd[1] if qpdf else bnd.base_layout
         if big:
             # split: cached prep state + logical gadget, then the ISA block + readout
             if (cname, fam) not in init_by_fam:
-                kind, off = CP.FAMILY_GADGET[fam]
                 ps = prep_mps(card_s, lat, emb.center, cache_dir, cap, threads=threads, log=log)
                 gad = QuantumCircuit(lat.n_wires)
-                gad.h(lat.ancilla)
-                gad.compose(C.insertion_gadget(lat, kind, emb.center + off, "direct"), inplace=True)
+                if not qpdf:
+                    kind, off = CP.FAMILY_GADGET[fam]
+                    gad.h(lat.ancilla)
+                    gad.compose(C.insertion_gadget(lat, kind, emb.center + off, "direct"), inplace=True)
                 q0 = QuantumCircuit(lat.n_wires)
                 q0.set_matrix_product_state(ps.mps)
                 routed, fl_g = route_to_chain(gad, ps.perm, lat.n_wires)
@@ -644,13 +649,16 @@ def rehearse(be, lat: Lattice, card, emb: T.Embedding, specs, shots: dict, ideal
                 q0.save_matrix_product_state(label="mps")
                 init_by_fam[(cname, fam)] = (sim.run(q0).result().data()["mps"], fl_g)
             n = s.n_steps
-            if n == 0:
-                body = C.readout_layer(QuantumCircuit(be.num_qubits), lat, bnd.base_layout, s.readout, s.anc_basis)
+            if qpdf:
+                body = C.readout_layer(QuantumCircuit(be.num_qubits), lat, base_layout,
+                                       C.qpdf_readout_map(lat, emb.center, s.readout), "Z")
+            elif n == 0:
+                body = C.readout_layer(QuantumCircuit(be.num_qubits), lat, base_layout, s.readout, s.anc_basis)
             else:
                 blk = bnd.blocks[n]["mirror" if s.mirror else "physics"] if s.dt == DT else \
                     T.assign_block(bnd, n, n * s.dt)[1 if s.mirror else 0]
                 body = C.readout_layer(blk, lat, bnd.blocks[n]["layout"], s.readout, s.anc_basis)
-            rel = relabel_pub(body, bnd.base_layout, lat.n_wires)
+            rel = relabel_pub(body, base_layout, lat.n_wires)
             mps_f, perm_f = init_by_fam[(cname, fam)]
             arr = sample_bits(sim, rel, shots[s.name], mps_f, noise_t,
                               seed=int(rng.integers(2**31)), n_traj=n_traj, perm=perm_f)
@@ -674,6 +682,10 @@ def rehearse(be, lat: Lattice, card, emb: T.Embedding, specs, shots: dict, ideal
     # a time with that card's own prefix, grids and couplings
     slices, presets = {}, {s.card or "": s.preset for s in specs}
     for cname, cdict in cards.items():
+        if not any(s.family != "qpdf" for s in specs if (s.card or cname) == cname):
+            # preparation-only card: the slice analysis has nothing to reduce
+            T._log(f"analyze skipped for {cname}: qpdf pubs only ('analyze --qpdf' reduces those)", log)
+            continue
         prefix = CP.name_prefix(presets.get(cname, ""), cname) if len(cards) > 1 else None
         out_t = os.path.join(out_dir, ("slice_{comp}_t{t:.1f}.npz" if len(cards) == 1
                                        else f"{cname}_slice_{{comp}}_t{{t:.1f}}.npz"))

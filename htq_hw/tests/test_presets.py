@@ -25,7 +25,9 @@ def test_preset_counts_and_structure(scratch):
     vac = CP.preset_specs("vac-w00")
     assert len(vac) == 50 and {s.card for s in vac} == set(CP.VAC_CARDS.values()) and {s.readout for s in vac} == {"Z"}
     q = CP.preset_specs("qpdf-scan")
-    assert len(q) == 8 * 20 and all(s.family == "qpdf" and s.n_steps == 0 for s in q)
+    # 4 kinds x 5 separations + the qZ density pub that supplies h(0)
+    assert len(q) == 8 * 21 and all(s.family == "qpdf" and s.n_steps == 0 for s in q)
+    assert sum(s.readout == "qZ" for s in q) == 8
     assert all(s.name.startswith(f"{s.preset}.{s.card}:") for s in core + bridge + vac + q)
     p = CP.parse_pub_name(core[-1].name)
     assert p["prefix"] == "relA-core.relA_k1.26_s0.75_ns50:" and p["mirror"] and p["t"] == 8.0
@@ -34,7 +36,7 @@ def test_preset_counts_and_structure(scratch):
 def test_compose_stretch_last_and_jobs():
     specs = CP.compose_presets(("relA-core", "prod-bridge", "vac-w00", "qpdf-scan"))
     names = [s.name for s in specs]
-    assert len(set(names)) == len(names) == 693
+    assert len(set(names)) == len(names) == 701
     first = next(i for i, s in enumerate(specs) if s.stretch)
     assert all(s.stretch for s in specs[first:]) and not any(s.stretch for s in specs[:first])
     jobs = CP.group_jobs(specs, 8)

@@ -165,6 +165,12 @@ def qpdf_specs(card: str, preset: str = "qpdf-scan", ms=QPDF_MS) -> list[PubSpec
             setting = f"q{kind}m{m}"
             out.append(PubSpec(f"{prefix}qpdf_t0.0_{setting}", "qpdf", 0.0, False, setting, "X", 0, DT,
                                prefix + f"qpdf_m{m}", card, preset, False))
+    # h(0) = <n(centre)>: the m = 0 point of the same transform, and the one
+    # the Gaussian window weights most.  It has to come from a preparation-only
+    # circuit like the others -- the t = 0 Hadamard-test reference measures the
+    # ancilla-averaged density, not this state's.
+    out.append(PubSpec(f"{prefix}qpdf_t0.0_{C.QPDF_Z}", "qpdf", 0.0, False, C.QPDF_Z, "X", 0, DT,
+                       prefix + "qpdf_m0", card, preset, False))
     return out
 
 
@@ -330,8 +336,7 @@ def _build_card_pubs(be, lat, card, emb, specs, basis, seed, cache_dir, log, str
     for s in specs:
         if s.family == "qpdf":
             isa, fl = bundles[(card["name"], "qpdf")]
-            m, kind = int(s.readout.split("m")[1]), s.readout[1:3]
-            bmap = C.qpdf_basis_map(lat, emb.center, m, kind)
+            bmap = C.qpdf_readout_map(lat, emb.center, s.readout)
             qc = C.readout_layer(isa, lat, fl, bmap, "Z")
             body_hash = ""
             layout = fl
@@ -345,7 +350,8 @@ def _build_card_pubs(be, lat, card, emb, specs, basis, seed, cache_dir, log, str
                 body, body_hash = b.base.compose(blk), _skel_hash(blk)
             qc = C.readout_layer(body, lat, layout, s.readout, s.anc_basis)
         pubs[s.name] = qc
-        bm = C.basis_map(lat, s.readout) if s.family != "qpdf" else C.qpdf_basis_map(lat, emb.center, int(s.readout.split("m")[1]), s.readout[1:3])
+        bm = (C.qpdf_readout_map(lat, emb.center, s.readout) if s.family == "qpdf"
+              else C.basis_map(lat, s.readout))
         info[s.name] = {"card": card["name"], "preset": s.preset, "stretch": s.stretch, "family": s.family,
                         "t": s.t, "mirror": s.mirror, "readout": s.readout, "anc_basis": s.anc_basis,
                         "n_steps": s.n_steps, "dt": s.dt, "group": s.group, "n2q": T.count_2q(qc),
