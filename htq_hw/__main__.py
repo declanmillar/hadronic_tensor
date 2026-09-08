@@ -74,7 +74,8 @@ def cmd_embed(args):
         g = T.Graph.from_backend(be)
         print(f"{spec}: {be.num_qubits} qubits, {g.n_edges} edges, "
               f"grid {T.grid_coordinates(g)[:2] if T.grid_coordinates(g) else None}")
-        emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log)
+        emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log,
+                                 allow_transpiler=getattr(args, "allow_transpiler", False))
         emb.validate(g)
         info = {k: v for k, v in emb.info.items() if k != "cycle"}
         print(f"  {emb.summary()}  info {info}")
@@ -92,7 +93,8 @@ def cmd_report(args):
         be = T.resolve_backend(spec)
         if T.is_real_backend(be):
             lat = Lattice(args.ns)
-            emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode)
+            emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode,
+                                     allow_transpiler=getattr(args, "allow_transpiler", False))
             b = T.transpile_bundle(be, lat, card, emb, (max(args.steps),), args.basis[0], "J0", args.seed, args.cache)
             full = C.readout_layer(b.base.compose(b.blocks[max(args.steps)]["physics"]), lat,
                                    b.blocks[max(args.steps)]["layout"], "Z")
@@ -131,7 +133,8 @@ def _setup(args, basis=None, require_real=False):
     if getattr(args, "preset", None) and "gauss-midcircuit" in args.preset:
         from .gauss import gauss_ancilla_sites
         gauss_sites = gauss_ancilla_sites(lat, center)
-    emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log, gauss_sites=gauss_sites)
+    emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log, gauss_sites=gauss_sites,
+                             allow_transpiler=getattr(args, "allow_transpiler", False))
     if getattr(args, "preset", None):
         specs = CP.compose_presets(args.preset)
         card = None                     # cards come from the specs
@@ -334,6 +337,10 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--card", default=DEFAULT_CARD)
     ap.add_argument("--ns", type=int, default=NS)
+    ap.add_argument("--allow-transpiler", action="store_true",
+                    help="permit a transpiler-chosen layout when no ladder/ring fits. Off by default: "
+                         "it roughly doubles the two-qubit count and skips the layout-preservation "
+                         "assertion the mirror mitigation depends on")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     e = sub.add_parser("embed")
