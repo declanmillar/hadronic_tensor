@@ -259,6 +259,19 @@ Invariants:
   one estimator;
 - mirrors >= 30000 shots.
 
+### 5.1 What `submit --real` does with the allocation
+
+The whole campaign is priced against `usage_remaining_seconds` **before job 0**: 112 jobs that each
+fit individually can still overrun together, and the per-job estimate cannot see that.  Over budget
+(more than `--guard`, default 85%, of what remains) nothing is submitted at all.  If the remaining
+allocation cannot be read, that is not treated as "it fits": a real submission stops unless
+`--no-strict-guard` says to proceed without the assurance.
+
+The jobs then run inside one `Batch` with a single hoisted sampler, so they execute back to back
+instead of re-queueing 112 times (`--no-batch` to disable).  If the per-job guard cancels a job, the
+loop **stops** rather than sending the remaining jobs, and the cancelled job's metadata is written
+anyway, so no spent job id is ever lost.  Resume from where it stopped with `--only-jobs`.
+
 ## 6. Acceptance gate
 
 One command decides whether this package may be run or shipped, and writes the evidence:
@@ -388,6 +401,7 @@ PYTHONPATH=. python -m htq_hw --ns 50 check --target fake:boston --times 0.5 --i
 PYTHONPATH=. python -m htq_hw --ns 50 rehearse --target fake:boston --ideal "..." --out data/hw/rehearsal --noise 0.005 3e-4
 PYTHONPATH=. python -m htq_hw submit --target fake:nighthawk --fetch        # local testing mode
 PYTHONPATH=. python -m htq_hw submit --target ibm_phoenix --real --confirm ibm_phoenix   # spends the allocation
+PYTHONPATH=. python -m htq_hw submit --target ibm_phoenix --real --confirm ibm_phoenix --only-jobs 7 8 9   # resume
 PYTHONPATH=. python -m htq_hw fetch data/hw/htq_job_<id>.json
 PYTHONPATH=. python -m htq_hw analyze data/hw/htq_bits_<id>.npz --prefix "relA-core.relA_k1.26_s0.75_ns50:"
 PYTHONPATH=. python -m htq_hw bundle --acceptance data/hw/acceptance.json --report-json report.json

@@ -21,6 +21,7 @@ of scripts/ibm_hardware.py:287-306; the same code path runs in
 qiskit-ibm-runtime local testing mode (SamplerV2(mode=FakeBoston())).
 """
 
+import contextlib
 import hashlib
 import json
 import os
@@ -499,56 +500,148 @@ def _sampler(mode, fractional: bool, shots_default: int | None = None):
     return smp
 
 
-def budget_guard(job, service=None, guard: float = 0.85, log=None) -> bool:
-    """Cancel before execution if the platform's estimate exceeds ``guard`` of
-    the remaining allocation (scripts/ibm_hardware.py:287-306).  Local jobs
-    expose neither quantity and pass through.  -> True if kept."""
-    rem = est_s = None
+GUARD_OK, GUARD_UNVERIFIABLE, GUARD_OVER = "ok", "unverifiable", "over"
+
+
+class BudgetError(RuntimeError):
+    """The allocation cannot be shown to cover what is about to be submitted."""
+
+
+def remaining_seconds(service, log=None):
+    """Allocation left, in QPU seconds, or None when it cannot be read."""
+    if service is None:
+        return None
     try:
-        rem = service.usage()["usage_remaining_seconds"] if service is not None else None
-    except Exception:
-        rem = None
+        return float(service.usage()["usage_remaining_seconds"])
+    except Exception as e:
+        T._log(f"usage_remaining_seconds unavailable ({type(e).__name__}: {e})", log)
+        return None
+
+
+def preflight_budget(service, est_seconds: float, guard: float = 0.85, log=None):
+    """Before job 0: the WHOLE campaign against the remaining allocation.
+    The per-job guard cannot see this -- 112 jobs each individually inside the
+    allocation still overrun it together.  -> (state, info)."""
+    rem = remaining_seconds(service, log)
+    info = {"estimated_s": float(est_seconds), "remaining_s": rem, "guard": guard}
+    if rem is None:
+        T._log(f"budget preflight: campaign ~{est_seconds:.0f} s, remaining UNKNOWN", log)
+        return GUARD_UNVERIFIABLE, info
+    T._log(f"budget preflight: campaign ~{est_seconds:.0f} s vs remaining {rem:.0f} s "
+           f"({est_seconds / max(rem, 1e-9):.0%} of it)", log)
+    return (GUARD_OVER if est_seconds > guard * rem else GUARD_OK), info
+
+
+def budget_guard(job, service=None, guard: float = 0.85, log=None) -> str:
+    """Per-job check against the remaining allocation
+    (scripts/ibm_hardware.py:287-306).  Tri-state, because "the platform did
+    not tell us" is not the same as "it fits": -> 'ok' | 'unverifiable' |
+    'over'.  The caller decides what an unverifiable estimate means; only
+    'over' cancels the job here."""
+    rem = remaining_seconds(service, log)
+    est_s = None
     try:
         ue = job.usage_estimation
         est_s = ue.get("quantum_seconds", None) if ue else None
     except Exception as e:
         T._log(f"usage_estimation unavailable ({type(e).__name__})", log)
     T._log(f"budget: estimated {est_s} s, remaining {rem} s", log)
-    if est_s is not None and rem is not None and est_s > guard * rem:
+    if est_s is None or rem is None:
+        return GUARD_UNVERIFIABLE
+    if est_s > guard * rem:
         job.cancel()
         T._log(f"CANCELLED {job.job_id()}: estimate {est_s} s exceeds {guard:.0%} of remaining {rem} s", log)
-        return False
-    return True
+        return GUARD_OVER
+    return GUARD_OK
 
 
 def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat: Lattice,
            emb: T.Embedding, basis: str, out_dir: str = "data/hw", service=None, guard: float = 0.85,
-           tag: str = "", log=None) -> list[dict]:
+           tag: str = "", log=None, est_seconds: float | None = None, strict_guard: bool = True,
+           batch: bool = True, job_offset: int = 0) -> list[dict]:
     """Submit one SamplerV2 job per name list; write data/hw/htq_job_<id>.json.
     ``mode`` is a real backend (from QiskitRuntimeService) or a fake backend /
-    AerSimulator for local testing mode.  -> [{'job': job, 'meta': dict, 'path': str}]."""
+    AerSimulator for local testing mode.
+
+    Three things this owes a 3-hour allocation.  The whole campaign is
+    pre-flighted against the remaining seconds before job 0, since 112 jobs
+    that each fit can still overrun together.  An unverifiable estimate stops
+    a real submission unless ``strict_guard=False``, rather than passing for
+    the same reason a verified one does.  And a job the guard cancels stops
+    the loop and still gets its metadata written, so the run neither spends
+    the rest of the allocation nor loses the ids of what it did spend.
+
+    -> [{'job': job, 'meta': dict, 'path': str}] for the jobs kept."""
     os.makedirs(out_dir, exist_ok=True)
     fractional = basis == "rzz"
-    records = []
-    for k, names in enumerate(jobs):
-        smp = _sampler(mode, fractional)
-        job = smp.run([(pubs[n], None, int(shots[n])) for n in names])
-        jid = job.job_id()
-        T._log(f"job {k}: {jid} with {len(names)} pubs {names}", log)
-        if not budget_guard(job, service, guard, log):
-            continue
-        meta = {"job_id": jid, "backend": T.backend_label(mode) if hasattr(mode, "name") else str(mode),
-                "htq_hw": __version__, "tag": tag, "basis": basis, "ns": lat.ns, "center": emb.center,
-                "n_logical": lat.n_wires, "embedding": emb.kind, "initial_layout": emb.layout,
-                "pub_names": names, "shots": {n: int(shots[n]) for n in names},
-                "pubs": {n: info[n] for n in names},
-                "options": {"twirling_gates": not fractional, "twirling_measure": True, "dd": "XY4"},
-                "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
-        path = os.path.join(out_dir, f"htq_job_{jid}.json")
-        with open(path, "w") as f:
-            json.dump(meta, f, indent=1)
-        records.append({"job": job, "meta": meta, "path": path})
+    real = T.is_real_backend(mode)
+    if real:
+        if est_seconds is None:
+            raise BudgetError("a real submission needs est_seconds to pre-flight the allocation")
+        state, binfo = preflight_budget(service, est_seconds, guard, log)
+        if state == GUARD_OVER:
+            raise BudgetError(
+                f"the campaign needs ~{binfo['estimated_s']:.0f} QPU s but only "
+                f"{binfo['remaining_s']:.0f} s remain (guard {guard:.0%}); nothing was submitted. "
+                f"Reduce it with --times / --shots-scale, or raise --guard deliberately.")
+        if state == GUARD_UNVERIFIABLE and strict_guard:
+            raise BudgetError(
+                "the remaining allocation could not be read, so this submission cannot be shown to "
+                "fit; nothing was submitted. Check the instance, or pass --no-strict-guard to "
+                "submit without that assurance.")
+    records, cancelled = [], None
+    with _batch_ctx(mode, real and batch, log) as bctx:
+        smp = _sampler(bctx if bctx is not None else mode, fractional)
+        for k, names in enumerate(jobs):
+            job = smp.run([(pubs[n], None, int(shots[n])) for n in names])
+            jid = job.job_id()
+            T._log(f"job {k + job_offset}: {jid} with {len(names)} pubs {names}", log)
+            meta = {"job_id": jid, "backend": T.backend_label(mode) if hasattr(mode, "name") else str(mode),
+                    "htq_hw": __version__, "tag": tag, "basis": basis, "ns": lat.ns, "center": emb.center,
+                    "n_logical": lat.n_wires, "embedding": emb.kind, "initial_layout": emb.layout,
+                    "pub_names": names, "shots": {n: int(shots[n]) for n in names},
+                    "pubs": {n: info[n] for n in names}, "job_index": k + job_offset,
+                    "options": {"twirling_gates": not fractional, "twirling_measure": True, "dd": "XY4"},
+                    "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            path = os.path.join(out_dir, f"htq_job_{jid}.json")
+            state = budget_guard(job, service, guard, log) if real else GUARD_OK
+            stop = state == GUARD_OVER or (state == GUARD_UNVERIFIABLE and strict_guard and real)
+            if stop and state == GUARD_UNVERIFIABLE:
+                job.cancel()
+            meta["guard"] = state
+            meta["cancelled"] = bool(stop)
+            with open(path, "w") as f:                      # written either way: never lose an id
+                json.dump(meta, f, indent=1)
+            if stop:
+                cancelled = (k + job_offset, state)
+                break
+            records.append({"job": job, "meta": meta, "path": path})
+    if cancelled is not None:
+        k, state = cancelled
+        left = len(jobs) - (k - job_offset) - 1
+        T._log(f"STOPPED at job {k} ({state}); {left} job(s) not submitted. Resume with "
+               f"--only-jobs {' '.join(str(k + job_offset + 1 + i) for i in range(min(left, 8)))}"
+               + (" ..." if left > 8 else ""), log)
     return records
+
+
+@contextlib.contextmanager
+def _batch_ctx(mode, use_batch: bool, log=None):
+    """One Batch around the whole campaign (jobs run back to back inside the
+    allocation instead of re-queueing 112 times), and one sampler hoisted out
+    of the loop.  Local testing mode gets neither: Batch needs a real backend."""
+    if not use_batch:
+        yield None
+        return
+    try:
+        from qiskit_ibm_runtime import Batch
+    except Exception as e:
+        T._log(f"Batch unavailable ({type(e).__name__}); submitting job by job", log)
+        yield None
+        return
+    with Batch(backend=mode) as b:
+        T._log(f"Batch {getattr(b, 'session_id', '?')} open on {T.backend_label(mode)}", log)
+        yield b
 
 
 def fetch(job, meta: dict, out_dir: str = "data/hw", log=None) -> str:

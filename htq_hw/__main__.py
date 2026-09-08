@@ -285,8 +285,14 @@ def cmd_submit(args):
             f"submit deliberately, or --target fake:nighthawk to rehearse.")
     else:
         print(f"local testing mode on {T.backend_label(be)}: {len(jobs)} jobs")
-    recs = CP.submit(mode, pubs, info, shots, jobs, lat, emb, args.basis, args.out, service, args.guard,
-                     tag=args.tag, log=log)
+    est_s = sum(shots[n] for j in jobs for n in j) * _rep
+    try:
+        recs = CP.submit(mode, pubs, info, shots, jobs, lat, emb, args.basis, args.out, service,
+                         args.guard, tag=args.tag, log=log, est_seconds=est_s,
+                         strict_guard=not args.no_strict_guard, batch=not args.no_batch,
+                         job_offset=(args.only_jobs[0] if args.only_jobs else 0))
+    except CP.BudgetError as e:
+        raise SystemExit(f"budget guard: {e}")
     if not args.real and args.fetch:
         for r in recs:
             CP.fetch(r["job"], r["meta"], args.out, log=log)
@@ -496,7 +502,12 @@ def main(argv=None):
     sb.add_argument("--fetch", action="store_true", help="local mode: fetch bits immediately")
     sb.add_argument("--shots-scale", type=float, default=1.0)
     sb.add_argument("--only-jobs", type=int, nargs="+", default=None)
-    sb.add_argument("--guard", type=float, default=0.85)
+    sb.add_argument("--guard", type=float, default=0.85,
+                    help="fraction of the remaining allocation a submission may claim")
+    sb.add_argument("--no-strict-guard", action="store_true",
+                    help="submit even when the remaining allocation cannot be read")
+    sb.add_argument("--no-batch", action="store_true",
+                    help="submit job by job instead of inside one Batch")
     sb.add_argument("--tag", default="")
     sb.add_argument("--out", default="data/hw")
     sb.set_defaults(fn=cmd_submit)

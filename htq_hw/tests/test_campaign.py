@@ -168,3 +168,105 @@ def test_fetch_bit_order_vs_statevector(scratch):
                 k = est["term"][b]
                 ref = sv.expectation_value(obs[f"XT{k}_{b}"]).real
                 assert abs(est["xT"][b] - ref) < 0.06
+
+
+# ---- budget guard: what a 3-hour allocation is owed ------------------------
+
+class _StubJob:
+    def __init__(self, est=None, jid="stub-job"):
+        self.usage_estimation = {"quantum_seconds": est} if est is not None else None
+        self._id, self.cancelled = jid, False
+
+    def job_id(self):
+        return self._id
+
+    def cancel(self):
+        self.cancelled = True
+
+
+class _StubService:
+    def __init__(self, remaining):
+        self._rem = remaining
+
+    def usage(self):
+        if self._rem is None:
+            raise RuntimeError("platform did not answer")
+        return {"usage_remaining_seconds": self._rem}
+
+
+@pytest.mark.parametrize("est,rem,want", [
+    (1000.0, 10800.0, CP.GUARD_OK),
+    (10000.0, 10800.0, CP.GUARD_OVER),          # 93% of what is left, guard 85%
+    (1000.0, None, CP.GUARD_UNVERIFIABLE),
+])
+def test_preflight_states(est, rem, want):
+    state, info = CP.preflight_budget(_StubService(rem), est, guard=0.85, log=None)
+    assert state == want and info["estimated_s"] == est and info["remaining_s"] == rem
+
+
+@pytest.mark.parametrize("est,rem,want,cancels", [
+    (100.0, 10800.0, CP.GUARD_OK, False),
+    (10000.0, 10800.0, CP.GUARD_OVER, True),
+    (None, 10800.0, CP.GUARD_UNVERIFIABLE, False),   # unreadable estimate is not "it fits"
+    (100.0, None, CP.GUARD_UNVERIFIABLE, False),
+])
+def test_budget_guard_is_tri_state(est, rem, want, cancels):
+    job = _StubJob(est)
+    assert CP.budget_guard(job, _StubService(rem), 0.85, log=None) == want
+    assert job.cancelled is cancels
+
+
+def _submit_args(tmp_path, n_jobs=3):
+    lat, emb = Lattice(4), T.choose_embedding(T.resolve_backend("grid:4x5"), 4, 1)
+    names = [f"p{i}" for i in range(n_jobs)]
+    pubs = {n: None for n in names}
+    return dict(pubs=pubs, info={n: {"n2q": 1} for n in names}, shots={n: 100 for n in names},
+                jobs=[[n] for n in names], lat=lat, emb=emb, basis="cz", out_dir=str(tmp_path))
+
+
+def test_real_submission_refuses_an_unfittable_campaign_before_job_zero(tmp_path, monkeypatch):
+    """112 jobs that each fit can still overrun together, so the whole campaign
+    is priced before the first one is sent."""
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: pytest.fail("submitted despite the guard"))
+    kw = _submit_args(tmp_path)
+    with pytest.raises(CP.BudgetError, match="only 600 QPU s remain|remain"):
+        CP.submit("dev", service=_StubService(600.0), est_seconds=10000.0, batch=False,
+                  log=None, **kw)
+    with pytest.raises(CP.BudgetError, match="could not be read"):
+        CP.submit("dev", service=_StubService(None), est_seconds=10.0, batch=False, log=None, **kw)
+    with pytest.raises(CP.BudgetError, match="est_seconds"):
+        CP.submit("dev", service=_StubService(10800.0), batch=False, log=None, **kw)
+    assert not list(tmp_path.glob("htq_job_*.json"))
+
+
+def test_guard_stops_the_loop_and_still_records_the_cancelled_job(tmp_path, monkeypatch):
+    """The failure this exists for: job 0 is cancelled over budget and the
+    other 111 are submitted anyway, with no record of the id that was spent."""
+    sent = []
+
+    class _Sampler:
+        def run(self, pubs):
+            sent.append(pubs)
+            return _StubJob(est=10000.0, jid=f"stub-{len(sent) - 1}")
+
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    recs = CP.submit("dev", service=_StubService(10800.0), est_seconds=10.0, batch=False,
+                     log=None, **_submit_args(tmp_path))
+    assert recs == [] and len(sent) == 1                      # stopped, did not send the rest
+    metas = sorted(tmp_path.glob("htq_job_*.json"))
+    assert len(metas) == 1
+    m = json.load(open(metas[0]))
+    assert m["cancelled"] is True and m["guard"] == CP.GUARD_OVER and m["job_id"] == "stub-0"
+
+
+def test_local_submission_needs_no_allocation_and_keeps_every_job(tmp_path, monkeypatch):
+    class _Sampler:
+        def run(self, pubs):
+            return _StubJob(est=None, jid=f"loc-{id(pubs) % 97}")
+
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    recs = CP.submit("fake", log=None, **_submit_args(tmp_path))
+    assert len(recs) == 3 and all(r["meta"]["guard"] == CP.GUARD_OK for r in recs)
+    assert all(r["meta"]["cancelled"] is False for r in recs)
