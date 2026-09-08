@@ -59,11 +59,29 @@ def _log(msg, log=None):
 
 
 # ------------------------------------------------------------------ backends
-def resolve_backend(spec: str, fractional: bool = False):
+class BackendSafetyError(RuntimeError):
+    """A --real submission would not reach the requested physical device.
+
+    Raised rather than letting a run proceed against a stand-in, a
+    GenericBackendV2 fractional twin, a simulator, or a different device than
+    the one named.  Every such case would otherwise look like a successful
+    hardware run and consume (or silently NOT consume) the allocation."""
+
+
+def canonical_backend_name(spec: str) -> str:
+    """'phoenix' -> 'ibm_phoenix'; anything else unchanged."""
+    return "ibm_phoenix" if spec in ("phoenix", "ibm_phoenix") else spec
+
+
+def resolve_backend(spec: str, fractional: bool = False, allow_standin: bool = True):
     """'fake:<name>' | 'grid:RxC' | 'heavyhex:d' | real IBM backend name.
     Real names go through QiskitRuntimeService (saved account) and are never
     touched by the tests.  ``fractional`` requests an rzz-capable target
-    (GenericBackendV2 twin for fakes that lack rzz)."""
+    (GenericBackendV2 twin for fakes that lack rzz).
+
+    ``allow_standin=False`` (what --real uses) refuses every offline
+    substitution: no stand-in for an invisible device, and no fractional twin
+    of a real one."""
     basis = FRACTIONAL_BASIS if fractional else ISA_BASIS
     if spec.startswith("fake:"):
         import warnings
@@ -82,11 +100,18 @@ def resolve_backend(spec: str, fractional: bool = False):
         cm = CouplingMap.from_heavy_hex(int(spec[9:]))
         be = GenericBackendV2(cm.size(), coupling_map=cm, basis_gates=basis, seed=SEED)
     elif spec in ("phoenix", "ibm_phoenix"):
-        be = _resolve_real_or_standin("ibm_phoenix", "fake:nighthawk", fractional)
+        be = _resolve_real_or_standin("ibm_phoenix", "fake:nighthawk", fractional,
+                                      allow_standin=allow_standin)
     else:
         from qiskit_ibm_runtime import QiskitRuntimeService
         be = QiskitRuntimeService().backend(spec, use_fractional_gates=fractional)
     if fractional and "rzz" not in be.operation_names:
+        if is_real_backend(be):
+            # substituting a simulator here is how a "real" run silently stops
+            # being real; the user must choose the CZ basis instead
+            raise BackendSafetyError(
+                f"{be.name} exposes no rzz (fractional gates): re-run with --basis cz, or ask IBM to "
+                f"enable fractional gates on this device. Refusing to substitute a simulated twin.")
         be = fractional_twin(be)
     return be
 
@@ -96,18 +121,70 @@ PHOENIX_NOTE = ("ibm_phoenix = IBM Nighthawk r2: 120 qubits on a square lattice 
                 "circuits; per-shot time ~250 us assumed until measured.")
 
 
-def _resolve_real_or_standin(real_name: str, standin_spec: str, fractional: bool):
+def _resolve_real_or_standin(real_name: str, standin_spec: str, fractional: bool,
+                             allow_standin: bool = True):
     """The real device when the saved account can see it, else the offline
     stand-in (same coupling map).  The returned backend carries
-    ``_htq_standin_for`` when it is the stand-in."""
+    ``_htq_standin_for`` when it is the stand-in.  With ``allow_standin=False``
+    the underlying error is raised instead, so a --real run fails in seconds
+    rather than silently simulating."""
     try:
         from qiskit_ibm_runtime import QiskitRuntimeService
         return QiskitRuntimeService().backend(real_name, use_fractional_gates=fractional)
     except Exception as e:  # no account, instance cannot see it, offline
+        if not allow_standin:
+            raise BackendSafetyError(
+                f"{real_name} is not reachable from the saved account ({type(e).__name__}: {e}). "
+                f"Save the instance that carries the allocation "
+                f"(QiskitRuntimeService.save_account(name=...)) and retry.") from e
         be = resolve_backend(standin_spec, fractional)
         be._htq_standin_for = real_name
         be._htq_standin_reason = f"{type(e).__name__}"
+        be._htq_standin_error = repr(e)
         return be
+
+
+def require_real_backend(be, spec: str, fractional: bool = False) -> dict:
+    """Assert that ``be`` IS the live IBM device named by ``spec``.
+
+    Collects every failing condition so one run reports all of them, and
+    returns a stamp for the job metadata / acceptance record."""
+    want = canonical_backend_name(spec)
+    why = []
+    if getattr(be, "_htq_standin_for", None):
+        why.append(f"resolved to the offline stand-in {be.name} for {be._htq_standin_for} "
+                   f"({getattr(be, '_htq_standin_error', be._htq_standin_reason)}): the saved account "
+                   f"cannot see the device")
+    if getattr(be, "_htq_twin_of", None):
+        why.append(f"resolved to a GenericBackendV2 fractional twin of {be._htq_twin_of}, a simulator")
+    if not is_real_backend(be):
+        why.append(f"{type(be).__module__}.{type(be).__name__} is not a live IBM backend")
+    if getattr(be, "simulator", False):
+        why.append(f"{be.name} reports simulator=True")
+    if is_real_backend(be) and be.name != want:
+        why.append(f"asked for {want} but resolved {be.name}")
+    if fractional and "rzz" not in be.operation_names:
+        why.append(f"{be.name} exposes no rzz but --basis rzz was requested")
+    try:
+        if be.status().operational is False:
+            why.append(f"{be.name} reports operational=False")
+    except Exception as e:
+        why.append(f"could not read {be.name}.status() ({type(e).__name__})")
+    if why:
+        raise BackendSafetyError(
+            "refusing to submit as a real hardware run:\n  - " + "\n  - ".join(why))
+    stamp = {"name": be.name, "label": backend_label(be), "num_qubits": be.num_qubits,
+             "basis_gates": sorted(be.operation_names), "is_real": True}
+    try:
+        stamp["n_edges"] = len(be.coupling_map.get_edges()) // 2
+    except Exception:
+        pass
+    for attr in ("instance", "last_update_date"):
+        try:
+            stamp[attr] = str(getattr(be, attr))
+        except Exception:
+            pass
+    return stamp
 
 
 def is_real_backend(be) -> bool:

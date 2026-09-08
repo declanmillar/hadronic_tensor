@@ -1,0 +1,29 @@
+{
+  "installed": "2026-09-08T02:14:00",
+  "families": {
+    "j0": {
+      "source": "data/hw_cal_prod_ns50_j0_vac.npz",
+      "sha256": "2bbe14291120ddf64f4dff11dffc46136e94aebc38d6f82049e98fcb504ae8af",
+      "times": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0
+      ],
+      "id_a": 0.5,
+      "c_a": -0.5,
+      "insert_1pt": 0.0867341166787714,
+      "H_prep": -52.22543793403846,
+      "note": "vacuum-state card: the vac-w00 preset measures W00 on the vacuum with no wavepacket block; produced by the routed MPS pipeline"
+    }
+  }
+}

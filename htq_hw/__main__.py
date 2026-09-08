@@ -109,17 +109,22 @@ def cmd_report(args):
 
 
 def _ideal_template(args):
+    """Default to the grids as they are actually installed in the cards."""
     if args.ideal:
         return args.ideal
-    return str(C.CARD_DIR / args.card / f"ns{args.ns}_ideal_{{family}}.npz")
+    return str(C.CARD_DIR / "{card}" / "ideal_{family}.npz").replace("{card}", args.card or "{card}")
 
 
-def _setup(args, basis=None):
+def _setup(args, basis=None, require_real=False):
     from . import campaign as CP
     card = C.load_card(args.card)
     lat = Lattice(args.ns)
     center = _center_for(card, args.ns)
-    be = T.resolve_backend(args.target, fractional=((basis or args.basis) == "rzz"))
+    fractional = (basis or args.basis) == "rzz"
+    # refuse offline substitutions before any (expensive) transpiling happens
+    be = T.resolve_backend(args.target, fractional=fractional, allow_standin=not require_real)
+    if require_real:
+        T.require_real_backend(be, args.target, fractional=fractional)
     if getattr(be, "_htq_standin_for", None):
         log(f"{be._htq_standin_for} not visible ({be._htq_standin_reason}); using {T.backend_label(be)}")
     gauss_sites = None
@@ -215,7 +220,7 @@ def cmd_rehearse(args):
 
 def cmd_submit(args):
     from . import campaign as CP
-    card, lat, center, be, emb, specs = _setup(args)
+    card, lat, center, be, emb, specs = _setup(args, require_real=args.real)
     pubs, info, _ = CP.build_pub_circuits(be, lat, card, emb, specs, args.basis, cache_dir=args.cache, log=log)
     plan, _rep = _plan(args, specs, info, be, pubs)
     shots = {n: max(16, int(v * args.shots_scale)) for n, v in plan["shots"].items()}
@@ -223,15 +228,27 @@ def cmd_submit(args):
     if args.only_jobs:
         jobs = [jobs[i] for i in args.only_jobs]
     service = None
+    mode = be
     if args.real:
         if args.target.startswith(("fake:", "grid:", "heavyhex:")):
             raise SystemExit("--real needs a real backend name as --target")
+        stamp = T.require_real_backend(be, args.target, fractional=(args.basis == "rzz"))
+        if args.confirm != be.name:
+            raise SystemExit(
+                f"--real spends the allocation: confirm the device with --confirm {be.name} "
+                f"(you passed {args.confirm!r})")
         from qiskit_ibm_runtime import QiskitRuntimeService
         service = QiskitRuntimeService()
-        mode = be
-        print(f"REAL submission to {be.name}: {len(jobs)} jobs, {sum(shots[n] for j in jobs for n in j)} shots")
+        n_shots = sum(shots[n] for j in jobs for n in j)
+        print(f"REAL submission to {stamp['name']} ({stamp['num_qubits']}q): {len(jobs)} jobs, "
+              f"{n_shots} shots")
+    elif T.is_real_backend(be):
+        # SamplerV2(mode=<IBMBackend>) submits to hardware whatever we print
+        raise SystemExit(
+            f"--target {args.target} resolves to the LIVE device {be.name}; submitting without --real "
+            f"would still run on hardware and spend the allocation. Use --real --confirm {be.name} to "
+            f"submit deliberately, or --target fake:nighthawk to rehearse.")
     else:
-        mode = be
         print(f"local testing mode on {T.backend_label(be)}: {len(jobs)} jobs")
     recs = CP.submit(mode, pubs, info, shots, jobs, lat, emb, args.basis, args.out, service, args.guard,
                      tag=args.tag, log=log)
@@ -361,6 +378,9 @@ def main(argv=None):
     sb = sub.add_parser("submit")
     _add_campaign_args(sb)
     sb.add_argument("--real", action="store_true", help="submit to the real backend named by --target")
+    sb.add_argument("--confirm", default=None, metavar="BACKEND",
+                    help="required with --real: the resolved backend name, typed out, so a real "
+                         "submission cannot happen by accident")
     sb.add_argument("--fetch", action="store_true", help="local mode: fetch bits immediately")
     sb.add_argument("--shots-scale", type=float, default=1.0)
     sb.add_argument("--only-jobs", type=int, nargs="+", default=None)

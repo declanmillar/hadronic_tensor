@@ -455,7 +455,8 @@ def check(be, lat: Lattice, card: dict, emb: T.Embedding, ideal_template: str, t
     steps = tuple(sorted({int(round(t / DT)) for t in times if t > 0}))
     results, worst = {}, 0.0
     for fam in families:
-        ideal = A.IdealGrid(ideal_template.format(family=fam))
+        ideal = A.IdealGrid(A._fmt(ideal_template, fam, card.get("name") if card else None),
+                            expect_ns=lat.ns)
         kind, off = CP.FAMILY_GADGET[fam]
         b = T.transpile_bundle(be, lat, card, emb, steps, basis, kind, seed, cache_dir, log=log,
                                gadget_center=emb.center + off if off else None)

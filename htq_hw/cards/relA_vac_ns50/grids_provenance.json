@@ -1,0 +1,21 @@
+{
+  "installed": "2026-09-08T02:14:22",
+  "families": {
+    "j0": {
+      "source": "data/hw_cal_relA_ns50_j0_vac.npz",
+      "sha256": "c941d55cb89d05d77e82020d7241a2e61756534a8805e55d6b817a318f7f1d2f",
+      "times": [
+        0.0,
+        0.5,
+        1.0,
+        2.0
+      ],
+      "id_a": 0.5,
+      "c_a": -0.5,
+      "insert_1pt": 0.18215828483900715,
+      "H_prep": -64.8583501744692,
+      "coverage": "PARTIAL: 4 of the 12 vac-w00 slices (t=0,0.5,1,2).",
+      "why": "the relA vacuum at eta=2.3 entangles fast under MPS: the full t<=6 grid was killed after 39 h still in the one-point pass at t=5.5 (logs/hw_cal_relA_vac.log). Calibration divides only by the t=0 row, which is present; the deeper rows are the wing-anchor target and are supplied by the small-lattice vacuum surrogate (scripts/wing_surrogate.py), which reproduces exactly this staggered Trotter breathing. Slices without either fall back to wing_applied=False."
+    }
+  }
+}

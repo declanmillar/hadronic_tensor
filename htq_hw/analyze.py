@@ -145,11 +145,16 @@ def term_split(resA: dict, resB: dict) -> tuple[dict, dict]:
 class IdealGrid:
     """Wrapper around an hw_cal_grids-format npz."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, expect_ns: int | None = None):
         self.path = path
         self.z = np.load(path, allow_pickle=True)
         self.times = np.asarray(self.z["times"], dtype=float)
         self.ns = len(self.z["probes"])
+        if expect_ns is not None and self.ns != expect_ns:
+            # comparing against a grid of another size silently produces
+            # order-one "deviations" that look like a physics failure
+            raise ValueError(f"{path}: grid is Ns={self.ns} but Ns={expect_ns} was requested; "
+                             f"use the card whose grids match, or --ns {self.ns}")
         self.id_a = float(self.z["id_a"])
         self.c_a = float(self.z["c_a"])
         self.A0 = float(np.real(self.z["insert_1pt"]))
@@ -160,6 +165,12 @@ class IdealGrid:
         if abs(self.times[i] - t) > 1e-6:
             raise KeyError(f"{self.path}: no ideal row at t={t} (have {self.times})")
         return i
+
+    def has_row(self, t: float) -> bool:
+        """True when an ideal row exists at t.  Calibration only ever divides
+        by the t=0 row; deeper rows are the wing-anchor target, so a short grid
+        degrades the anchor (wing_applied=False) rather than blocking a slice."""
+        return bool(len(self.times)) and abs(self.times[int(np.argmin(np.abs(self.times - t)))] - t) <= 1e-6
 
     def has(self, key: str) -> bool:
         return key in self.z.files
@@ -185,9 +196,19 @@ class IdealGrid:
         return self.vec("B", t)
 
 
-def load_ideal_grids(template: str, families) -> dict:
+def _fmt(template: str, family: str, card: str | None = None) -> str:
+    """Fill {family} and, when present, {card} in an ideal-grid template."""
+    out = template.replace("{family}", family)
+    if "{card}" in out:
+        if not card:
+            raise ValueError(f"template {template!r} needs a card name")
+        out = out.replace("{card}", card)
+    return out
+
+
+def load_ideal_grids(template: str, families, card=None, expect_ns=None) -> dict:
     """{family: IdealGrid} from a template with '{family}'."""
-    return {f: IdealGrid(template.format(family=f)) for f in families}
+    return {f: IdealGrid(_fmt(template, f, card), expect_ns=expect_ns) for f in families}
 
 
 # ------------------------------------------------------------------ calibration
