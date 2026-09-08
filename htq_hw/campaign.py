@@ -319,6 +319,7 @@ def _build_card_pubs(be, lat, card, emb, specs, basis, seed, cache_dir, log, str
                             "skeleton_full": _skel_hash(qc), "gauss_sites": sites,
                             "gauss_rounds": n_rounds(s.n_steps) if s.n_steps else 1,
                             "syndrome_clbits": list(range(lat.n_wires, qc.num_clbits)),
+                            "n_clbits": int(qc.num_clbits),
                             "basis_map": {str(k): v for k, v in C.basis_map(lat, s.readout).items()} | {str(lat.ancilla): s.anc_basis},
                             "clbit_to_logical": list(range(lat.n_wires))}
         for key, pair in gskel.items():
@@ -348,7 +349,7 @@ def _build_card_pubs(be, lat, card, emb, specs, basis, seed, cache_dir, log, str
                         "t": s.t, "mirror": s.mirror, "readout": s.readout, "anc_basis": s.anc_basis,
                         "n_steps": s.n_steps, "dt": s.dt, "group": s.group, "n2q": T.count_2q(qc),
                         "depth2q": T.depth_2q(qc), "layout": list(layout), "skeleton_block": body_hash,
-                        "skeleton_full": _skel_hash(qc),
+                        "skeleton_full": _skel_hash(qc), "n_clbits": int(qc.num_clbits),
                         "basis_map": {str(k): v for k, v in bm.items()} | {str(lat.ancilla): s.anc_basis},
                         "clbit_to_logical": list(range(lat.n_wires))}
 
@@ -559,18 +560,36 @@ def fetch(job, meta: dict, out_dir: str = "data/hw", log=None) -> str:
         job = QiskitRuntimeService().job(job)
     res = job.result()
     n_logical = int(meta["n_logical"])
-    out = {}
+    out, problems = {}, []
     for name, pub in zip(meta["pub_names"], res):
-        ba = pub.data.c
+        d = pub.data
+        if hasattr(d, "c"):
+            ba = d.c
+        else:                                    # a pub with its own register name
+            keys = list(d.keys())
+            if len(keys) != 1:
+                problems.append((name, f"{len(keys)} classical registers: {keys}"))
+                continue
+            ba = d[keys[0]]
         arr = ba.to_bool_array(order="little").astype(np.uint8)
-        assert arr.shape[1] == n_logical, (name, arr.shape)
-        assert meta["pubs"][name]["clbit_to_logical"] == list(range(n_logical))
-        out[name] = arr
+        # the gauss-midcircuit family carries syndrome clbits ABOVE the logical
+        # register, so the width is n_logical only for the ordinary families
+        want = int(meta["pubs"].get(name, {}).get("n_clbits", n_logical))
+        if arr.shape[1] != want:
+            problems.append((name, f"width {arr.shape[1]}, expected {want}"))
+        cmap = meta["pubs"].get(name, {}).get("clbit_to_logical")
+        if cmap is not None and list(cmap) != list(range(n_logical)):
+            problems.append((name, "clbit_to_logical is not the identity"))
+        out[name] = arr                          # keep it either way
+    # write BEFORE validating: a shape surprise must never lose a paid result
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"htq_bits_{meta['job_id']}.npz")
     np.savez_compressed(path, job_id=meta["job_id"], backend=meta["backend"],
                         pub_names=np.array(meta["pub_names"]), **out)
     T._log(f"fetched {len(out)} pubs -> {path}", log)
+    if problems:
+        raise ValueError(f"{path} was written, but {len(problems)} pub(s) look wrong: "
+                         + "; ".join(f"{n}: {w}" for n, w in problems))
     return path
 
 

@@ -249,6 +249,54 @@ def wing_anchor(b_cal, b_ideal, center: int):
     return out, syst
 
 
+def available_prefixes(bits_paths) -> list[str]:
+    """Pub-name prefixes present in a set of bits files, so an empty selection
+    can say what WAS there instead of silently writing nothing."""
+    out = set()
+    for path in bits_paths:
+        try:
+            z = np.load(path, allow_pickle=True)
+        except Exception:
+            continue
+        for k in z.files:
+            if ":" in k:
+                out.add(k.split(":", 1)[0] + ":")
+    return sorted(out)
+
+
+def load_wing_surrogate(path: str | None):
+    """Per-parity staggered vacuum breathing (scripts/wing_surrogate.py).
+
+    The wing-anchor target is the IDEAL <J0(v,t)> of the dt=0.5 circuit.  When
+    a card's ideal grid stops short in time, that target is still available:
+    the wing signal is a bulk vacuum mode, computed exactly on a small ring.
+    Validated at the production point against the Ns=50 packet wings and the
+    vacuum card to 2e-5 (gate 2e-3)."""
+    if not path:
+        return None
+    z = np.load(path, allow_pickle=True)
+    return {"times": np.asarray(z["times"], float), "even": np.asarray(z["even"], float),
+            "odd": np.asarray(z["odd"], float), "path": path,
+            "couplings": tuple(float(z[k]) for k in ("m0", "g2", "eta")) if "m0" in z.files else None}
+
+
+def wing_target(ideal_fam, t: float, surrogate=None):
+    """-> (b_ideal at time t, source) with source in {'grid','surrogate'}, or
+    (None, 'unavailable') when neither can supply it and the anchor must be
+    skipped."""
+    if ideal_fam.has_row(t):
+        return ideal_fam.b_ideal(t), "grid"
+    if surrogate is not None:
+        ts = surrogate["times"]
+        i = int(np.argmin(np.abs(ts - t)))
+        if abs(ts[i] - t) <= 1e-6:
+            b0 = ideal_fam.b_ideal(0.0)
+            idx = np.arange(len(b0))
+            shift = np.where(idx % 2 == 0, surrogate["even"][i], surrogate["odd"][i])
+            return b0 + shift, "surrogate"
+    return None, "unavailable"
+
+
 def rebuild_C(anc, b_cal, id_a, id_b, A0):
     """Full correlator from the calibrated ancilla signal and probe one-point
     (scripts/losch_t3_pool.py:94-95)."""
@@ -285,7 +333,8 @@ class JobBits:
 
 
 def _calib_J0(job: JobBits, family: str, t: float, ideal_fam: IdealGrid, ideal_j0: IdealGrid,
-              center: int, anc: str = "X", wing: bool = True, dt: float = DT) -> dict | None:
+              center: int, anc: str = "X", wing: bool = True, dt: float = DT,
+              surrogate=None, log=None) -> dict | None:
     """One job, one family, J0 probes (Z readout): calibrated ancilla signal,
     b_cal, errors (scripts/ibm_hardware.py:358-380, losch_t3_pool.py:124-146)."""
     pname = pub_name(family, t, False, "Z", anc, dt)
@@ -305,8 +354,14 @@ def _calib_J0(job: JobBits, family: str, t: float, ideal_fam: IdealGrid, ideal_j
         kap, kerr, bet = np.ones(lat_ns(job)), np.zeros(lat_ns(job)), np.ones(lat_ns(job))
     b_cal = 0.5 + (p["B"] - 0.5) / bet
     sN = np.zeros_like(b_cal)
+    wing_source = "off"
     if wing:
-        b_cal, sN = wing_anchor(b_cal, ideal_fam.b_ideal(t), center)
+        tgt, wing_source = wing_target(ideal_fam, t, surrogate)
+        if tgt is not None:
+            b_cal, sN = wing_anchor(b_cal, tgt, center)
+        elif log:
+            log(f"  {family} t={t}: no wing target ({ideal_fam.path} has no row at t={t} and no "
+                f"surrogate covers it) -> wing_applied=False, per-parity anchor NOT subtracted")
     c_a = FAMILY_COEFF[family] * (job.eta if family.startswith("j1") else 1.0)
     id_a = ideal_fam.id_a
     anc_cal = c_a * p["sx"] / kap
@@ -315,7 +370,8 @@ def _calib_J0(job: JobBits, family: str, t: float, ideal_fam: IdealGrid, ideal_j
            + (id_a * p["Be"] / np.abs(bet)) ** 2 + (id_a * sN) ** 2)
     return dict(anc_cal=anc_cal, anc_raw=anc_raw, var=var, kap=kap, bet=bet, b_cal=b_cal,
                 B=p["B"], Be=p["Be"], bvar=p["Be"] ** 2 / bet ** 2 + sN ** 2, N=p["N"],
-                gauss=p["gauss"], gauss_m=m["gauss"], xa=p["xa"], mirror=mname)
+                gauss=p["gauss"], gauss_m=m["gauss"], xa=p["xa"], mirror=mname,
+                wing_applied=(wing_source in ("grid", "surrogate")), wing_source=wing_source)
 
 
 def _calib_J1(job: JobBits, family: str, t: float, ideal_j0: IdealGrid, anc: str = "X",
@@ -369,7 +425,7 @@ def _merge(slabs: list[dict], key: str = "anc_cal", var: str = "var"):
 
 def component_slice(comp: str, t: float, jobs: list[JobBits], ideals: dict, lat: Lattice,
                     center: int, backend: str = "", anc: str = "X", wing: bool = True,
-                    dt: float = DT) -> dict | None:
+                    dt: float = DT, surrogate=None, log=None) -> dict | None:
     """Assemble one (component, t, dt) slice from all jobs that carry its pubs.
     t = 0 references are raw: kappa_v = 1 explicitly and raw_reference = True."""
     fams, probe = COMPONENT_LAYOUT[comp]
@@ -381,7 +437,8 @@ def component_slice(comp: str, t: float, jobs: list[JobBits], ideals: dict, lat:
     for job in jobs:
         parts = []
         for fam in fams:
-            r = (_calib_J0(job, fam, t, ideals[fam], ideal_j0, center, anc, wing, dt) if probe == "J0"
+            r = (_calib_J0(job, fam, t, ideals[fam], ideal_j0, center, anc, wing, dt,
+                           surrogate=surrogate, log=log) if probe == "J0"
                  else _calib_J1(job, fam, t, ideal_j0, anc, dt))
             if r is None:
                 parts = []
@@ -476,14 +533,21 @@ def load_job_bits(bits_path: str, lat: Lattice, eta: float = ETA, prefix: str | 
 
 def analyze(bits_paths, ideal_template: str, out_template: str, ns: int, center: int,
             times=None, components=COMPONENTS, eta: float = ETA, backend: str = "",
-            anc: str = "X", wing: bool = True, log=print, prefix: str | None = None) -> dict:
+            anc: str = "X", wing: bool = True, log=print, prefix: str | None = None,
+            card: str | None = None, wing_surrogate: str | None = None) -> dict:
     """Bits files (one per job) -> slice npz files.  -> {(comp, t): path}.
-    ``prefix`` selects one preset/card of a composed campaign."""
+    ``prefix`` selects one preset/card of a composed campaign; ``wing_surrogate``
+    supplies the wing-anchor target for slices whose ideal grid stops short."""
     lat = Lattice(ns)
     jobs = [load_job_bits(p, lat, eta, prefix) for p in bits_paths]
     jobs = [j for j in jobs if j.bits]
+    if not jobs:
+        avail = available_prefixes(bits_paths)
+        raise ValueError(f"no pubs matching prefix={prefix!r} in {list(bits_paths)}; "
+                         f"available prefixes: {avail or ['(none - unprefixed pubs only)']}")
     fams = sorted({f for c in components for f in COMPONENT_LAYOUT[c][0]} | {"j0"})
-    ideals = load_ideal_grids(ideal_template, fams)
+    ideals = load_ideal_grids(ideal_template, fams, card=card, expect_ns=ns)
+    surrogate = load_wing_surrogate(wing_surrogate)
     present = {(p["t"], p["dt"]) for j in jobs for p in map(parse_pub_name, j.bits) if p["family"] != "qpdf"}
     if times is not None:
         present = {(t, dt) for t, dt in present if any(abs(t - x) < 1e-9 for x in times)}
@@ -491,7 +555,8 @@ def analyze(bits_paths, ideal_template: str, out_template: str, ns: int, center:
     os.makedirs(os.path.dirname(out_template.format(comp="00", t=0.0)) or ".", exist_ok=True)
     for comp in components:
         for t, dt in sorted(present):
-            sl = component_slice(comp, t, jobs, ideals, lat, center, backend, anc, wing, dt)
+            sl = component_slice(comp, t, jobs, ideals, lat, center, backend, anc, wing, dt,
+                                 surrogate=surrogate, log=log)
             if sl is None:
                 continue
             path = slice_path(out_template, comp, t, dt)

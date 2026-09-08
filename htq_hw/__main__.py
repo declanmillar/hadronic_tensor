@@ -267,10 +267,18 @@ def cmd_fetch(args):
 
 def cmd_analyze(args):
     from . import analyze as A
+    from . import campaign as CP
+    if args.list_prefixes:
+        print("prefixes present:", A.available_prefixes(args.bits) or "(none: unprefixed pubs only)")
+        return
     card = C.load_card(args.card)
     center = _center_for(card, args.ns)
+    prefix = args.prefix
+    if prefix is None and args.preset:
+        prefix = CP.name_prefix(args.preset, args.card)
     A.analyze(args.bits, _ideal_template(args), args.slices, args.ns, center, args.times, args.components,
-              card["couplings"]["eta"], args.backend, log=log)
+              card["couplings"]["eta"], args.backend, log=log, prefix=prefix, card=args.card,
+              wing_surrogate=args.wing_surrogate)
 
 
 def cmd_bundle(args):
@@ -399,6 +407,14 @@ def main(argv=None):
     an.add_argument("--times", type=float, nargs="+", default=None)
     an.add_argument("--components", nargs="+", default=["00", "10", "01", "11"])
     an.add_argument("--backend", default="")
+    an.add_argument("--prefix", default=None,
+                    help="'preset.card:' pub-name prefix selecting one card of a composed campaign")
+    an.add_argument("--preset", default=None, help="with --card, derives --prefix")
+    an.add_argument("--list-prefixes", action="store_true",
+                    help="list the prefixes present in the bits files and exit")
+    an.add_argument("--wing-surrogate", default=None, metavar="NPZ",
+                    help="wing-anchor target for slices whose ideal grid stops short "
+                         "(scripts/wing_surrogate.py build)")
     an.set_defaults(fn=cmd_analyze)
     bd = sub.add_parser("bundle")
     bd.add_argument("--out", default=None)
