@@ -25,7 +25,7 @@ import pathlib
 import sys
 import time
 
-from . import CENTER, DEFAULT_CARD, DT, MIRROR_EPS, NS, __version__
+from . import CENTER, DEFAULT_CARD, DT, MIRROR_EPS, NS, __version__, check_versions
 from .campaign import DT_HALF_TIMES as CP_DT_HALF_TIMES
 from . import circuits as C
 from . import target as T
@@ -210,7 +210,18 @@ def cmd_check(args):
         print(f"\nper-family / per-readout worst |diff| ({time.time() - t0:.0f}s):")
         for tag, groups in S.LAST_GROUPS.items():
             print(f"  {tag:22} " + "  ".join(f"{g}: {v:.2e}" for g, (v, k) in groups.items()))
-    print(f"worst |diff| {max(res.values()):.2e} over {len(res)} circuits")
+    worst = max(res.values())
+    print(f"worst |diff| {worst:.2e} over {len(res)} circuits")
+    if getattr(args, "record", None):
+        from . import record as R
+        status = R.PASS if worst <= args.tol else R.FAIL
+        path = R.write_record(args.record, "check", {
+            "target": R.backend_stamp(be), "ns": args.ns, "basis": args.basis, "times": times,
+            "tol": args.tol, "worst": worst, "n_circuits": len(res),
+            "results": {"/".join(map(str, k)): v for k, v in res.items()},
+            "groups": {t: {g: v for g, (v, _k) in gr.items()} for t, gr in S.LAST_GROUPS.items()},
+        }, status)
+        print(f"record: {path}")
 
 
 def cmd_rehearse(args):
@@ -225,6 +236,21 @@ def cmd_rehearse(args):
     out = S.rehearse(be, lat, card, emb, specs, shots, _ideal_template(args), args.out, args.basis, noise,
                      args.seed, args.cap, args.threads, args.cache, n_traj=args.n_traj, log=log)
     print(f"bits {out['bits']}\nmeta {out['meta']}\n{len(out['slices'])} slices under {args.out}")
+    if getattr(args, "record", None):
+        import numpy as _np
+        from . import record as R
+        rows = {}
+        for key, path in out["slices"].items():
+            z = _np.load(path, allow_pickle=True)
+            rows["/".join(str(x) for x in (key if isinstance(key, tuple) else (key,)))] = {
+                "kappa_center": float(z["kappa_v"][0][center]),
+                "masked": int(z["mask"][0].sum()), "nshot": int(z["nshot"]), "path": path}
+        path = R.write_record(args.record, "rehearse", {
+            "target": R.backend_stamp(be), "ns": args.ns, "basis": args.basis,
+            "noise": list(noise) if noise else None, "seed": args.seed,
+            "shots": {"total": int(sum(shots.values())), "n_pubs": len(shots)},
+            "bits": out["bits"], "meta": out["meta"], "slices": rows}, R.PASS)
+        print(f"record: {path}")
 
 
 def cmd_submit(args):
@@ -290,28 +316,91 @@ def cmd_analyze(args):
               wing_surrogate=args.wing_surrogate)
 
 
+def cmd_acceptance(args):
+    from . import acceptance as AC
+    from . import record as R
+    rec = AC.run(args.target, args.preset or ["relA-core", "prod-bridge", "vac-w00", "qpdf-scan"],
+                 ns=args.ns, basis=args.basis, level=args.level, mode=args.mode,
+                 require_real=args.require_real, cache_dir=args.cache, threads=args.threads,
+                 budget=args.budget, rep_time=args.rep_time, tol=args.tol, times=args.times,
+                 wing_surrogate=args.wing_surrogate, rehearse_shots=args.accept_shots,
+                 kappa_tol=args.kappa_tol, log=log)
+    path = R.write_record(args.record, "acceptance", rec, rec["status"])
+    print()
+    print(R.summarize({"kind": "acceptance", **rec, "env": R.env_stamp(), "git": R.git_stamp()}))
+    print(f"\nrecord: {path}")
+    if rec["status"] == R.FAIL:
+        raise SystemExit(1)
+
+
+def _require_acceptance(args, root):
+    """A bundle is a claim that this exact tree was validated.  Refuse to make
+    the claim without a record, on a record that failed, or on a record whose
+    files no longer hash to what is about to be shipped."""
+    from . import record as R
+    path = pathlib.Path(args.acceptance)
+    hint = (f"  PYTHONPATH=. python -m htq_hw --ns {args.ns} acceptance --level full "
+            f"--target <device> --record {path}")
+    if not path.exists():
+        raise SystemExit(f"no acceptance record at {path}; run\n{hint}")
+    rec = R.load_record(path)
+    if rec.get("kind") != "acceptance":
+        raise SystemExit(f"{path} is a {rec.get('kind')!r} record, not an acceptance record")
+    if rec.get("status") == R.FAIL:
+        raise SystemExit("the acceptance record FAILED:\n  "
+                         + "\n  ".join(rec.get("failures", [])) + f"\nfix, then re-run\n{hint}")
+    if rec.get("level") != "full" and not args.allow_fast:
+        raise SystemExit(f"{path} is level={rec.get('level')!r}: a bundle needs the full level "
+                         f"(check + rehearse), or --allow-fast to ship an unrehearsed package")
+    now = R.file_hashes(root)
+    was = rec.get("files", {})
+    changed = sorted(f for f, h in was.items() if now.get(f) != h)
+    added = sorted(f for f in now if f not in was)
+    if changed or added:
+        raise SystemExit(
+            f"the package changed since {path} was written: {len(changed)} modified"
+            + (f" ({changed[:4]})" if changed else "") + f", {len(added)} new"
+            + (f" ({added[:4]})" if added else "") + f"\nre-run acceptance on this tree\n{hint}")
+    if rec.get("warnings") and not args.accept_warnings:
+        raise SystemExit("the acceptance record passed with warnings:\n  "
+                         + "\n  ".join(rec["warnings"])
+                         + "\nship anyway with --accept-warnings, which records them in the bundle")
+    return rec, now
+
+
 def cmd_bundle(args):
     import io
     import zipfile
     from contextlib import redirect_stdout
+    from . import record as R
     root = pathlib.Path(__file__).parent
     out = pathlib.Path(args.out or f"htq_hw_{__version__}.zip")
+    rec, hashes = _require_acceptance(args, root)
     buf = io.StringIO()
     with redirect_stdout(buf):
         cmd_audit(args)
     files = [p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts
              and p.suffix in (".py", ".json", ".txt", ".md", ".npz")]
+    manifest = "".join(f"{h}  htq_hw/{f}\n" for f, h in sorted(hashes.items()))
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for p in files:
             z.write(p, f"htq_hw/{p.relative_to(root)}")
         z.writestr("htq_hw/run_audit.txt", buf.getvalue())
+        z.writestr("htq_hw/ACCEPTANCE.json", json.dumps(rec, indent=1, default=str))
+        z.writestr("htq_hw/ACCEPTANCE.txt", R.summarize(rec))
+        z.writestr("htq_hw/MANIFEST.sha256", manifest)
         if args.report_json and pathlib.Path(args.report_json).exists():
             rows = json.load(open(args.report_json))
             z.writestr("htq_hw/report_table.txt", T.format_table(rows))
         z.writestr("htq_hw/BUNDLE.txt", f"htq_hw {__version__} bundled {time.strftime('%Y-%m-%d %H:%M')}\n"
                    f"{len(files)} package files; run: pip install -r htq_hw/requirements.txt; "
-                   f"python -m htq_hw report --targets fake:boston fake:nighthawk\n")
-    print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB, {len(files)} files)")
+                   f"python -m htq_hw report --targets fake:boston fake:nighthawk\n"
+                   f"acceptance {rec['status']} (level {rec.get('level')}) on "
+                   f"{rec.get('target', {}).get('label')} written {rec.get('written')}; "
+                   f"verify with: sha256sum -c htq_hw/MANIFEST.sha256\n")
+    print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB, {len(files)} files); "
+          f"acceptance {rec['status']}, level {rec.get('level')}, "
+          f"{len(hashes)} files hashed in MANIFEST.sha256")
 
 
 def _add_campaign_args(p):
@@ -384,6 +473,7 @@ def main(argv=None):
     ck.add_argument("--tol", type=float, default=5e-3)
     ck.add_argument("--cap", type=int, default=512)
     ck.add_argument("--threads", type=int, default=2)
+    ck.add_argument("--record", default=None, help="write a machine-readable check record here")
     ck.set_defaults(fn=cmd_check)
     rh = sub.add_parser("rehearse")
     _add_campaign_args(rh)
@@ -391,6 +481,7 @@ def main(argv=None):
     rh.add_argument("--shots-scale", type=float, default=0.01)
     rh.add_argument("--shots", type=int, default=None, help="fixed shots per pub (overrides the plan)")
     rh.add_argument("--noise", type=float, nargs=2, metavar=("P2", "P1"), default=None)
+    rh.add_argument("--record", default=None, help="write a machine-readable rehearsal record here")
     rh.add_argument("--seed", type=int, default=0)
     rh.add_argument("--n-traj", type=int, default=8, help="noise trajectories (batches) per pub")
     rh.add_argument("--cap", type=int, default=512)
@@ -429,11 +520,46 @@ def main(argv=None):
                     help="wing-anchor target for slices whose ideal grid stops short "
                          "(scripts/wing_surrogate.py build)")
     an.set_defaults(fn=cmd_analyze)
+    ac = sub.add_parser("acceptance", help="validate everything and write a record; bundle requires it")
+    ac.add_argument("--target", default="fake:nighthawk")
+    ac.add_argument("--basis", choices=["cz", "rzz"], default="cz")
+    ac.add_argument("--mode", choices=["auto", "ring", "ladder", "grid", "transpiler"], default="auto")
+    ac.add_argument("--preset", nargs="+", default=None)
+    ac.add_argument("--level", choices=["fast", "full"], default="fast")
+    ac.add_argument("--require-real", action="store_true",
+                    help="fail unless the target is the live device (use before a real run)")
+    ac.add_argument("--record", default="data/hw/acceptance.json")
+    ac.add_argument("--times", type=float, nargs="+", default=None)
+    ac.add_argument("--tol", type=float, default=5e-3)
+    ac.add_argument("--budget", type=float, default=180.0)
+    ac.add_argument("--rep-time", type=float, default=250e-6)
+    ac.add_argument("--cache", default=str(pathlib.Path.home() / ".cache" / "htq_hw"),
+                    help="qpy / prep-MPS cache ('' disables); the full level needs it")
+    ac.add_argument("--threads", type=int, default=2)
+    ac.add_argument("--accept-shots", type=int, default=4000,
+                    help="shots per pub in the level=full rehearsal (statistics, not physics)")
+    ac.add_argument("--kappa-tol", type=float, default=0.25,
+                    help="allowed |kappa(center) - 1| in the noiseless rehearsal")
+    ac.add_argument("--wing-surrogate", default="data/wing_surrogate_{tag}.npz",
+                    help="wing-anchor target for cards whose grids stop short ({tag} -> prod/relA)")
+    ac.set_defaults(fn=cmd_acceptance)
+
     bd = sub.add_parser("bundle")
     bd.add_argument("--out", default=None)
     bd.add_argument("--report-json", default=None)
+    bd.add_argument("--acceptance", default="data/hw/acceptance.json",
+                    help="acceptance record this bundle claims to satisfy")
+    bd.add_argument("--accept-warnings", action="store_true",
+                    help="ship despite recorded warnings (they travel in ACCEPTANCE.txt)")
+    bd.add_argument("--allow-fast", action="store_true",
+                    help="ship on a level=fast record: no check, no rehearsal")
     bd.set_defaults(fn=cmd_bundle)
     args = ap.parse_args(argv)
+    bad = check_versions()
+    if bad:
+        log("WARNING: this environment does not match htq_hw/requirements.txt: " + "; ".join(bad)
+            + " -- the mirror-skeleton invariant is version sensitive; "
+              "pip install -r htq_hw/requirements.txt")
     if getattr(args, "cache", None) == "":
         args.cache = None
     if getattr(args, "weighting", None) is None and hasattr(args, "preset"):

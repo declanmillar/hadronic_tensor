@@ -12,16 +12,15 @@ from htq_hw import sim as S
 from htq_hw import target as T
 from htq_hw.model import Lattice
 
-SCR = "/tmp/claude-1000/-home-hlamm-Desktop-QC-hadronic-tensor/4a179643-b4b8-42be-b43f-ffcd49ec9721/scratchpad/htq_tests"
 NS, CENTER, TIMES = 6, 2, (0.5,)
 
 
 @pytest.fixture(scope="module")
-def setup():
-    os.makedirs(SCR, exist_ok=True)
+def setup(tmp_path_factory):
+    scr = tmp_path_factory.mktemp("analyze")
     card = C.load_card()
     lat = Lattice(NS)
-    tpl = os.path.join(SCR, "ideal_{family}.npz")
+    tpl = os.path.join(str(scr), "ideal_{family}.npz")
     S.write_ideal_grids(card, NS, CENTER, ("j0", "j1p1", "j1p2"), [0.0] + list(TIMES), tpl, threads=2)
     return card, lat, tpl
 

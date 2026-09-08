@@ -264,20 +264,41 @@ def available_prefixes(bits_paths) -> list[str]:
     return sorted(out)
 
 
-def load_wing_surrogate(path: str | None):
+def wing_path_for(template: str | None, card: str | None) -> str | None:
+    """A wing-surrogate path per card: ``{tag}`` in the template becomes the
+    coupling tag ('prod' / 'relA') the card belongs to, ``{card}`` its name.
+    A template without either is used as given."""
+    if not template:
+        return None
+    tag = "relA" if (card or "").startswith("relA") else "prod"
+    try:
+        return str(template).format(tag=tag, card=card or "")
+    except (KeyError, IndexError):
+        return str(template)
+
+
+def load_wing_surrogate(path: str | None, eta: float | None = None):
     """Per-parity staggered vacuum breathing (scripts/wing_surrogate.py).
 
     The wing-anchor target is the IDEAL <J0(v,t)> of the dt=0.5 circuit.  When
     a card's ideal grid stops short in time, that target is still available:
     the wing signal is a bulk vacuum mode, computed exactly on a small ring.
     Validated at the production point against the Ns=50 packet wings and the
-    vacuum card to 2e-5 (gate 2e-3)."""
+    vacuum card to 2e-5 (gate 2e-3).
+
+    ``eta`` is the consuming card's coupling: the breathing is coupling
+    specific, so serving a relA card from the production surrogate would bias
+    every anchored slice.  Mismatches raise rather than warn."""
     if not path:
         return None
     z = np.load(path, allow_pickle=True)
+    cpl = tuple(float(z[k]) for k in ("m0", "g2", "eta")) if "m0" in z.files else None
+    if eta is not None and cpl is not None and abs(cpl[2] - float(eta)) > 1e-9:
+        raise ValueError(f"wing surrogate {path} is for eta={cpl[2]:g} (m0,g2,eta={cpl}); "
+                         f"this card has eta={float(eta):g}. The breathing is coupling specific: "
+                         f"build the matching surrogate (scripts/wing_surrogate.py --coupling ...)")
     return {"times": np.asarray(z["times"], float), "even": np.asarray(z["even"], float),
-            "odd": np.asarray(z["odd"], float), "path": path,
-            "couplings": tuple(float(z[k]) for k in ("m0", "g2", "eta")) if "m0" in z.files else None}
+            "odd": np.asarray(z["odd"], float), "path": path, "couplings": cpl}
 
 
 def wing_target(ideal_fam, t: float, surrogate=None):
@@ -547,7 +568,7 @@ def analyze(bits_paths, ideal_template: str, out_template: str, ns: int, center:
                          f"available prefixes: {avail or ['(none - unprefixed pubs only)']}")
     fams = sorted({f for c in components for f in COMPONENT_LAYOUT[c][0]} | {"j0"})
     ideals = load_ideal_grids(ideal_template, fams, card=card, expect_ns=ns)
-    surrogate = load_wing_surrogate(wing_surrogate)
+    surrogate = load_wing_surrogate(wing_surrogate, eta=eta)
     present = {(p["t"], p["dt"]) for j in jobs for p in map(parse_pub_name, j.bits) if p["family"] != "qpdf"}
     if times is not None:
         present = {(t, dt) for t, dt in present if any(abs(t - x) < 1e-9 for x in times)}

@@ -681,7 +681,7 @@ def rehearse(be, lat: Lattice, card, emb: T.Embedding, specs, shots: dict, ideal
             got = A.analyze([bits_path], ideal_template, out_t, lat.ns, emb.center,
                             components=components, eta=cdict["couplings"]["eta"],
                             backend=meta["backend"], log=log, prefix=prefix, card=cname,
-                            wing_surrogate=wing_surrogate)
+                            wing_surrogate=A.wing_path_for(wing_surrogate, cname))
         except ValueError as e:          # e.g. a card with only qpdf pubs
             T._log(f"analyze skipped for {cname}: {e}", log)
             continue

@@ -135,7 +135,7 @@ def test_local_submit_fetch_round_trip_fakeboston(tmp_path):
         os.path.join(str(tmp_path), f"htq_bits_{recs[1]['meta']['job_id']}.npz"))["j0_t0.5_Z"])
 
 
-def test_fetch_bit_order_vs_statevector():
+def test_fetch_bit_order_vs_statevector(scratch):
     """Noiseless local sampling (SamplerV2 on Aer) at Ns=4: per-shot
     estimators from the fetched bits agree with Statevector expectation
     values of the logical circuit."""
@@ -147,9 +147,9 @@ def test_fetch_bit_order_vs_statevector():
     names = ["j0_t0.5_Z", "j0_t0.5_XYA", "j0_m0.5_Z"]
     shots = {n: 4000 for n in names}
     meta_recs = CP.submit(AerSimulator(), pubs, info, shots, [names], lat, emb, "cz",
-                          out_dir="/tmp/claude-1000/-home-hlamm-Desktop-QC-hadronic-tensor/4a179643-b4b8-42be-b43f-ffcd49ec9721/scratchpad/htq_tests")
+                          out_dir=str(scratch))
     path = CP.fetch(meta_recs[0]["job"], meta_recs[0]["meta"],
-                    "/tmp/claude-1000/-home-hlamm-Desktop-QC-hadronic-tensor/4a179643-b4b8-42be-b43f-ffcd49ec9721/scratchpad/htq_tests")
+                    str(scratch))
     z = np.load(path, allow_pickle=True)
     obs = S.probe_observables(lat, ("J0", "J1"), card["couplings"]["eta"])
     for name, setting in (("j0_t0.5_Z", "Z"), ("j0_t0.5_XYA", "XYA")):

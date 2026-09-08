@@ -12,7 +12,7 @@ from htq_hw import target as T
 from htq_hw.model import Lattice, gauss_terms, to_sparse_pauli_op
 
 
-def test_preset_counts_and_structure():
+def test_preset_counts_and_structure(scratch):
     core = CP.preset_specs("relA-core")
     assert len(core) == 12 * 18 + 9 + 2 * 18 + 4 * 18 == 333
     assert sum(s.stretch for s in core) == 72 and {s.t for s in core if s.stretch} == set(CP.STRETCH_TIMES)
@@ -55,10 +55,10 @@ def test_compose_stretch_last_and_jobs():
     assert plan["shots"][[s for s in specs if s.family == "qpdf"][0].name] == 20000
 
 
-def test_vacuum_cards_build_and_check_ns6():
+def test_vacuum_cards_build_and_check_ns6(scratch):
     """Vacuum cards: no block, gauge-invariant prep, ideal grid + check at Ns=6."""
     import os
-    scr = "/tmp/claude-1000/-home-hlamm-Desktop-QC-hadronic-tensor/4a179643-b4b8-42be-b43f-ffcd49ec9721/scratchpad/htq_tests"
+    scr = str(scratch)
     os.makedirs(scr, exist_ok=True)
     for name in CP.VAC_CARDS.values():
         card = C.load_card(name)
