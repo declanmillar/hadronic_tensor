@@ -14,11 +14,24 @@ inputs to `scripts/hw_w_tensor.py`, which assembles `W^{μν}`.
 **Job metadata** (`job_*.json`) — `job_id, tier, backend, shots, circ_names,
 obs_names, circ_meta`.
 
-**Raw bitstrings** (`sq_bits_kingston.npz`) — the one equal-time sample kept
-per shot: `bits`, `(30000, 100)` uint8, column *i* = logical qubit *i*. This
-is the file the gauge post-selection of `docs/METHODS.md` runs on, and it is
-the only one that supports re-analysis (a different post-selection window, a
-different calibration) without re-running the device.
+**Raw bitstrings** — the per-shot samples, which are what support re-analysis
+(a different post-selection window, a different calibration) without
+re-running the device:
+
+- `sq_bits_kingston.npz` — the equal-time S(q) sample, `(30000, 100)` uint8,
+  column *i* = logical qubit *i*. This is what the gauge post-selection of
+  `docs/METHODS.md` runs on.
+- `losch_bits_*.npz` — nine jobs, `(shots, 101)` uint8 per pub, keyed by slice
+  (`t0.5`, `m0.5`, `l1.0`, …). These carry the shots behind the tier-3 slices
+  at t = 0.5, 1.0, 1.5, 2.0 and 3.0 in the RZZ basis. Note the column order is
+  the reversed legacy view (see `primitive/README.md`).
+
+**Primitive-level results** (`primitive/`) — the runtime output as the device
+returned it, retrieved from the IBM accounts. Read that directory's README
+first: the four earliest tier-3 kingston jobs were submitted with
+`EstimatorV2`, so they returned expectation values and **no shots exist for
+them at all**, on IBM's side or ours. Their `evs`/`stds` are archived there,
+which still allows the mirror calibration to be redone independently.
 
 ## Sending raw pub results — yes, please
 
