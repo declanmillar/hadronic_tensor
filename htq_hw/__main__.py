@@ -235,7 +235,8 @@ def cmd_rehearse(args):
         shots = {n: int(args.shots) for n in shots}
     noise = tuple(args.noise) if args.noise else None
     out = S.rehearse(be, lat, card, emb, specs, shots, _ideal_template(args), args.out, args.basis, noise,
-                     args.seed, args.cap, args.threads, args.cache, n_traj=args.n_traj, log=log)
+                     args.seed, args.cap, args.threads, args.cache, n_traj=args.n_traj, log=log,
+                     wing_surrogate=args.wing_surrogate)
     print(f"bits {out['bits']}\nmeta {out['meta']}\n{len(out['slices'])} slices under {args.out}")
     if getattr(args, "record", None):
         import numpy as _np
@@ -543,6 +544,8 @@ def main(argv=None):
     rh.add_argument("--shots", type=int, default=None, help="fixed shots per pub (overrides the plan)")
     rh.add_argument("--noise", type=float, nargs=2, metavar=("P2", "P1"), default=None)
     rh.add_argument("--record", default=None, help="write a machine-readable rehearsal record here")
+    rh.add_argument("--wing-surrogate", default=C.ref_path("wing_surrogate_{tag}.npz"), metavar="NPZ",
+                    help="wing-anchor target for slices whose ideal grid stops short")
     rh.add_argument("--seed", type=int, default=0)
     rh.add_argument("--n-traj", type=int, default=8, help="noise trajectories (batches) per pub")
     rh.add_argument("--cap", type=int, default=512)
@@ -582,7 +585,7 @@ def main(argv=None):
     an.add_argument("--preset", default=None, help="with --card, derives --prefix")
     an.add_argument("--list-prefixes", action="store_true",
                     help="list the prefixes present in the bits files and exit")
-    an.add_argument("--wing-surrogate", default=None, metavar="NPZ",
+    an.add_argument("--wing-surrogate", default=C.ref_path("wing_surrogate_{tag}.npz"), metavar="NPZ",
                     help="wing-anchor target for slices whose ideal grid stops short "
                          "(scripts/wing_surrogate.py build)")
     an.add_argument("--qpdf", action="store_true",
@@ -591,7 +594,7 @@ def main(argv=None):
     an.add_argument("--out", default="data/hw/qpdf_{card}.npz", help="--qpdf output template")
     an.add_argument("--ms", type=int, nargs="+", default=[1, 2, 3, 4, 5], help="--qpdf separations")
     an.add_argument("--k0", type=float, default=None, help="--qpdf boost (default: from the card)")
-    an.add_argument("--refs", default="data/qpdf_card_refs.npz",
+    an.add_argument("--refs", default=C.ref_path("qpdf_card_refs.npz"),
                     help="--qpdf ideal references to compare against ('' to skip)")
     an.add_argument("--no-vacuum", action="store_true",
                     help="--qpdf: reduce without the vacuum subtraction (disconnected)")
@@ -615,11 +618,11 @@ def main(argv=None):
     ac.add_argument("--threads", type=int, default=2)
     ac.add_argument("--accept-shots", type=int, default=4000,
                     help="shots per pub in the level=full rehearsal (statistics, not physics)")
-    ac.add_argument("--refs", default="data/qpdf_card_refs.npz",
+    ac.add_argument("--refs", default=C.ref_path("qpdf_card_refs.npz"),
                     help="ideal <x> references the rehearsed qpdf cards are checked against")
     ac.add_argument("--kappa-tol", type=float, default=0.25,
                     help="allowed |kappa(center) - 1| in the noiseless rehearsal")
-    ac.add_argument("--wing-surrogate", default="data/wing_surrogate_{tag}.npz",
+    ac.add_argument("--wing-surrogate", default=C.ref_path("wing_surrogate_{tag}.npz"),
                     help="wing-anchor target for cards whose grids stop short ({tag} -> prod/relA)")
     ac.set_defaults(fn=cmd_acceptance)
 

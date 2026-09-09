@@ -266,3 +266,23 @@ def test_isa_pipeline_matches_logical_statevector(spec, basis):
     base_only = C.readout_layer(C.base_circuit(lat, card, "J1a", center=2, accumulate=acc), lat, ident, "Z")
     p_m = _probabilities(isa_m, [blk["layout"][i] for i in range(lat.n_wires)])
     assert np.abs(p_m - _probabilities(base_only)).max() < 1e-5
+
+
+def test_cycle_search_is_bounded_by_work_not_wall_clock():
+    """A search that runs out of budget is an unfinished search, not a device
+    without a ladder, and the silent alternative costs 1.9x the two-qubit count
+    per Trotter step.  Bounding by expansions keeps a busy machine from
+    quietly choosing a different layout than an idle one."""
+    be = T.resolve_backend("fake:nighthawk")
+    g, _ = T.operational_graph(be, exclude_qubits=(7,))   # one dead qubit: no template ladder fits
+    rep = {}
+    out = T.search_ladder(g, 50, 24, max_expansions=200, report=rep, log=None)
+    assert rep["stopped_by"] == "max_expansions" and rep["expansions"] >= 200
+    assert out == []                                     # too little work to find one
+    with pytest.raises(T.EmbeddingError, match="truncated by max_expansions"):
+        T.choose_embedding(be, 50, 24, mode="auto", max_expansions=200, graph=g)
+    rep2 = {}
+    T.search_ladder(g, 50, 24, max_expansions=200, report=rep2, log=None)
+    assert rep2["expansions"] == rep["expansions"]        # same work every run
+    full = T.choose_embedding(be, 50, 24, mode="auto", graph=g, log=None)
+    assert full.kind == "ladder" and full.info["search"]["stopped_by"] != "time_budget"

@@ -19,6 +19,15 @@ from . import (CENTER, DEFAULT_CARD, DT, ETA, G2, KINDS, M0, MIRROR_EPS,
 from .model import Lattice
 
 CARD_DIR = pathlib.Path(__file__).parent / "cards"
+REF_DIR = pathlib.Path(__file__).parent / "refs"
+
+
+def ref_path(name: str) -> str:
+    """A shipped reference file, by name or by '{tag}' template.  Looks inside
+    the package first so a bundle is self-contained, then at the repository's
+    data/ so a working tree picks up a freshly regenerated one."""
+    probe = name.format(tag="prod", card="") if "{" in name else name
+    return str(REF_DIR / name) if (REF_DIR / probe).exists() else str(pathlib.Path("data") / name)
 N_VACUUM_PARAMS_PER_LAYER = 4   # htensor/stateprep.py:134
 
 

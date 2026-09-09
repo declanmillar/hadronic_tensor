@@ -878,8 +878,12 @@ def unit_cycles(g: Graph, length: int = 4, limit: int = 4000):
     return out
 
 
-def grow_cycles(g: Graph, ns: int, beam: int = 64, time_budget_s: float = 60.0,
-                seed: int = SEED, log=None):
+MAX_EXPANSIONS = 400000
+
+
+def grow_cycles(g: Graph, ns: int, beam: int = 64, time_budget_s: float = 600.0,
+                seed: int = SEED, max_expansions: int = MAX_EXPANSIONS, log=None,
+                report: dict | None = None):
     """Beam search for simple cycles of exactly ``ns`` vertices on the ACTUAL
     device graph.
 
@@ -887,7 +891,14 @@ def grow_cycles(g: Graph, ns: int, beam: int = 64, time_budget_s: float = 60.0,
     (_ear_expansions), keeping the ``beam`` best partial cycles ranked by how
     close they are to admitting a perfect pendant matching.  This replaces
     enumerating idealized rectangles, of which exactly one fits a pristine
-    Nighthawk and none fit once a single element is disabled."""
+    Nighthawk and none fit once a single element is disabled.
+
+    The search is bounded by WORK (``max_expansions`` candidate cycles scored),
+    not by wall clock: a run on a busy machine must not silently find fewer
+    embeddings than the same run on an idle one, because the fallback is a grid
+    layout with 1.9x the two-qubit count per Trotter step.  ``time_budget_s`` is
+    only a backstop, and whichever bound stops the search is recorded in
+    ``report['stopped_by']``."""
     import time
     rng = np.random.default_rng(seed)
     t0 = time.time()
@@ -896,7 +907,14 @@ def grow_cycles(g: Graph, ns: int, beam: int = 64, time_budget_s: float = 60.0,
         return []
     best_at = {}
     seen = set()
-    while frontier and time.time() - t0 < time_budget_s:
+    expansions, stopped = 0, "exhausted"
+    while frontier:
+        if expansions >= max_expansions:
+            stopped = "max_expansions"
+            break
+        if time.time() - t0 >= time_budget_s:
+            stopped = "time_budget"
+            break
         nxt = []
         for cyc in frontier:
             for cand in _ear_expansions(g, list(cyc), max_len=ns):
@@ -913,24 +931,31 @@ def grow_cycles(g: Graph, ns: int, beam: int = 64, time_budget_s: float = 60.0,
             scored.append((deficit, -spare, -len(c), rng.random(), c))
             if len(c) == ns and deficit == 0:
                 best_at.setdefault(frozenset(c), list(c))
+        expansions += len(nxt)
         scored.sort()
         frontier = [c for *_, c in scored[:beam]]
         if len(best_at) >= beam:
+            stopped = "beam_full"
             break
     out = list(best_at.values())
-    _log(f"grow_cycles: {len(out)} cycle(s) of length {ns} in {time.time() - t0:.1f}s", log)
+    if report is not None:
+        report.update(stopped_by=stopped, expansions=expansions, cycles=len(out),
+                      seconds=round(time.time() - t0, 1))
+    _log(f"grow_cycles: {len(out)} cycle(s) of length {ns} in {time.time() - t0:.1f}s "
+         f"({expansions} expansions, stopped by {stopped})", log)
     return out
 
 
 def search_ladder(g: Graph, ns: int, center: int = CENTER, gauss_sites=None, beam: int = 64,
-                  time_budget_s: float = 60.0, max_embeddings: int = 8, seed: int = SEED,
-                  log=None):
+                  time_budget_s: float = 600.0, max_embeddings: int = 8, seed: int = SEED,
+                  max_expansions: int = MAX_EXPANSIONS, report: dict | None = None, log=None):
     """Ladder embeddings found on the real graph: an ns-cycle of matter sites,
     a private pendant link qubit for each, and an ancilla adjacent to the
     centre site.  Needs no grid coordinates and tolerates dead qubits/edges."""
     out = []
     gs = sorted(gauss_sites or [])
-    for cyc in grow_cycles(g, ns, beam=beam, time_budget_s=time_budget_s, seed=seed, log=log):
+    for cyc in grow_cycles(g, ns, beam=beam, time_budget_s=time_budget_s, seed=seed,
+                           max_expansions=max_expansions, report=report, log=log):
         for k in range(len(cyc)):
             v = cyc[k]
             extra = [v] + [cyc[(k + int(n) - center) % ns] for n in gs]
@@ -1063,7 +1088,8 @@ def score_embedding(emb: Embedding, be) -> float:
 def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
                      max_cycles: int = 4, log=None, gauss_sites=None,
                      allow_transpiler: bool = False, graph=None, beam: int = 64,
-                     time_budget_s: float = 60.0, seed: int = SEED) -> Embedding:
+                     time_budget_s: float = 600.0, seed: int = SEED,
+                     max_expansions: int = MAX_EXPANSIONS) -> Embedding:
     """mode: auto | ring | ladder | grid | transpiler.  auto = ladder on a
     square lattice (grid cycle if the ladder does not fit), ring on heavy-hex.
     Ties broken by score_embedding.
@@ -1078,12 +1104,24 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
     g = graph if graph is not None else Graph.from_backend(be)
     grid = grid_coordinates(g)
     cands = []
+    search = {}
     if mode in ("auto", "ladder"):
         if grid:
             cands = grid_ladder(g, ns, center, coords=grid, gauss_sites=gauss_sites)
         if not cands:                       # templates need a pristine lattice; the graph search does not
             cands = search_ladder(g, ns, center, gauss_sites=gauss_sites, beam=beam,
-                                  time_budget_s=time_budget_s, seed=seed, log=log)
+                                  time_budget_s=time_budget_s, seed=seed,
+                                  max_expansions=max_expansions, report=search, log=log)
+        if not cands and search.get("stopped_by") in ("time_budget", "max_expansions"):
+            # "we ran out of budget" is not "there is no ladder", and the next
+            # fallback costs 1.9x the two-qubit count per Trotter step
+            raise EmbeddingError(
+                f"the ladder search on {backend_label(be)} was truncated by {search['stopped_by']} "
+                f"after {search.get('expansions')} expansions ({search.get('seconds')} s) without "
+                f"finding an Ns={ns} cycle. That is an unfinished search, not a device that cannot "
+                f"host one, and the fallback layouts cost about 1.9x the two-qubit count per step. "
+                f"Raise max_expansions (currently {max_expansions}) or time_budget_s, or pass "
+                f"mode='grid' deliberately.", diagnostics={"search": search, "ns": ns})
     if not cands and mode in ("auto", "grid") and grid:
         cands = grid_cycle(g, ns, center, coords=grid)
     if not cands and (mode == "ring" or (mode == "auto" and not grid)):
@@ -1113,6 +1151,8 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
                     key=lambda x: (x[0], x[1]))
     best = scored[0][2]
     best.info["score"] = scored[0][0]
+    if search:
+        best.info["search"] = dict(search)
     best.info["n_candidates"] = len(cands)
     best.info["redundancy"] = len({tuple(e.layout) for e in cands})
     best.info["spare_qubits"] = g.n - len(set(best.layout or []))

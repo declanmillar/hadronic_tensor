@@ -239,9 +239,10 @@ def test_qpdf_distribution_reproduces_the_reference_transform():
     P = k0 per site, normalize then take the moment.  The stored h already
     carries the phase, so it is removed before feeding it back in."""
     import pathlib
-    p = pathlib.Path("data/qpdf_card_refs.npz")
+    from htq_hw import circuits as C
+    p = pathlib.Path(C.ref_path("qpdf_card_refs.npz"))
     if not p.exists():
-        pytest.skip("ideal qpdf references not present (repo data/)")
+        pytest.skip("ideal qpdf references not present")
     z = np.load(p, allow_pickle=True)
     ms = np.asarray(z["ms"])
     for key in ("prod_s0.75", "relA_s1.50"):
@@ -271,3 +272,20 @@ def test_qpdf_bits_by_card_round_trip(scratch, tmp_path):
     assert set(by) == {"prod_k1.26_s0.75_ns50", "prod_vac_ns50"}
     assert len(by["prod_vac_ns50"]) == 21                       # 4 kinds x 5 separations + qZ
     assert "qZ" in by["prod_k1.26_s0.75_ns50"] and "qXYm3" in by["prod_vac_ns50"]
+
+
+def test_shipped_references_are_present_and_self_describing():
+    """A bundle carries its own references: without the surrogate the relA
+    anchor silently degrades, and without the qpdf refs there is nothing to
+    compare <x> against."""
+    import pathlib
+    from htq_hw import circuits as C
+    for name, eta in (("wing_surrogate_prod.npz", 1.3), ("wing_surrogate_relA.npz", 2.3)):
+        p = pathlib.Path(C.REF_DIR / name)
+        assert p.exists(), f"{name} is not shipped in htq_hw/refs"
+        sur = A.load_wing_surrogate(str(p), eta=eta)
+        assert sur["couplings"][2] == eta and sur["times"].max() >= 8.0
+        with pytest.raises(ValueError):
+            A.load_wing_surrogate(str(p), eta=eta + 1.0)
+    z = np.load(C.REF_DIR / "qpdf_card_refs.npz", allow_pickle=True)
+    assert {f"{t}_s{w}_x" for t in ("prod", "relA") for w in ("0.75", "1.00", "1.50")} <= set(z.files)
