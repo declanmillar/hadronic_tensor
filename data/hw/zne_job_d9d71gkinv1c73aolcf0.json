@@ -1,0 +1,11 @@
+{
+ "job_id": "d9d71gkinv1c73aolcf0",
+ "backend": "ibm_kingston",
+ "shots": 50000,
+ "folds": [
+  0,
+  1,
+  2
+ ],
+ "creg": "meas"
+}
