@@ -38,6 +38,24 @@ paper figures rendered from exactly these arrays.
 | `cgkinA` | CGK inelastic A | (0.1, 0.4, 1.0) |
 | `cgkinB` | CGK inelastic B | (0.2, 0.4, 1.0) |
 
+## Device data versus simulation
+
+Some `.npz` files here hold **per-shot bitstrings** and it is not always
+obvious from the name whether the shots came from a quantum computer or from
+a noisy simulator. The distinction:
+
+| file | source | what it is |
+|---|---|---|
+| `hw/sq_bits_kingston.npz` | **ibm_kingston** | 30,000 shots, equal-time S(q) / screening cloud |
+| `hw/losch_bits_*.npz` (9) | **ibm_kingston** | 7k–70k shots per pub, 29 pubs; the shots behind the tier-3 slices at t = 0.5 … 3.0 |
+| `hw/primitive/sampler_*.npz` | **ibm_kingston** | the ZNE t = 0 job as IBM returned it (packed) |
+| `hw/primitive/estimator_*.npz` | **ibm_kingston / marrakesh / fez** | expectation values, not shots — see `hw/primitive/README.md` |
+| `2p_bits_g{0,1,2}_k1.26.npz` | **AerSimulator** | 80,000 simulated shots per gate-noise scale g, used to fit the two-parameter noise model against the measured S(q) curve (`scripts/hw_sq_2param.py`) |
+
+Everything under `hw/` is device data. `2p_bits_*` is simulation despite
+sitting alongside it. Local Aer dry-run samples (`tmp_losch2_*`) are scratch
+and are deliberately not released.
+
 ## File groups
 
 **Production hadronic tensor (101 qubits).**
