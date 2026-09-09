@@ -18,11 +18,9 @@ import numpy as np
 from htensor import Z2Lattice, analysis
 
 OI = ["#0072B2", "#D55E00", "#009E73", "#E69F00"]
-plt.rcParams.update({
-    "font.family": "serif", "mathtext.fontset": "stix",
-    "font.size": 11, "axes.labelsize": 12,
-    "axes.grid": True, "grid.alpha": 0.25, "grid.linewidth": 0.6,
-})
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from paper_style import *  # usetex + OI palette + dev()
 
 d = np.load("data/w00_vac_ns50.npz")
 ns, vc = int(d["ns"]), int(d["vc"])
@@ -56,15 +54,21 @@ for j, q in enumerate(q1):
 # ---- conductivity
 fig, ax = plt.subplots(figsize=(5.2, 3.6), constrained_layout=True)
 for j, (k, q) in enumerate(zip(ks, q1)):
-    sig = q0 * W.real[:, j] / q**2
-    band = q0 * spread[:, j] / 2 / q**2
+    # exact lattice Ward factor: the point-split current gives the lattice
+    # momentum qhat = 2 sin(q1/4), not the continuum q1 (they differ by ~2,
+    # a ~4x factor in sigma, persisting as q->0 since qhat -> q1/2)
+    qhat = 2 * np.sin(q / 4)
+    sig = q0 * W.real[:, j] / qhat**2
+    band = q0 * spread[:, j] / 2 / qhat**2
     ax.fill_between(q0, sig - band, sig + band, color=OI[j], alpha=0.2, lw=0)
     ax.plot(q0, sig, color=OI[j], lw=1.8,
             label=rf"$q^1 = 2\pi\cdot{k}/25 = {q:.2f}$")
 ax.axvline(2.7451, color="0.35", lw=0.9, ls="--")
-ax.text(2.7451, ax.get_ylim()[1] * 0.92, r" $M$", color="0.25", fontsize=10)
+ax.text(2.70, ax.get_ylim()[1] * 0.95, r"$M$", color="0.25",
+        fontsize=10, ha="right")
 ax.set_xlabel(r"$\omega$")
-ax.set_ylabel(r"$\mathrm{Re}\,\sigma(\omega) = \omega\, W^{00}/(q^1)^2$")
+ax.set_ylabel(r"$\mathrm{Re}\,\sigma(\omega) = \omega\, W^{00}/"
+              r"(2\sin(q^1/4))^2$")
 ax.set_title(r"optical conductivity, $N_s=50$ vacuum (Ward-converted)",
              fontsize=11)
 ax.legend(fontsize=9, framealpha=0.9)

@@ -14,11 +14,9 @@ import numpy as np
 from htensor import Z2Lattice, analysis
 
 OI = ["#0072B2", "#D55E00", "#009E73", "#E69F00", "#CC79A7"]
-plt.rcParams.update({
-    "font.family": "serif", "mathtext.fontset": "stix",
-    "font.size": 11, "axes.labelsize": 12,
-    "axes.grid": True, "grid.alpha": 0.25, "grid.linewidth": 0.6,
-})
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from paper_style import *  # usetex + OI palette + dev()
 
 path = sys.argv[1]
 d = np.load(path)
@@ -69,12 +67,12 @@ np.savez(path.replace(".npz", "_W.npz"), q0=q0, q1=q1, W=W, spread=spread, k0=k0
 fig, (axL, axR) = plt.subplots(1, 2, figsize=(9.4, 3.8),
                                constrained_layout=True,
                                gridspec_kw={"width_ratios": [1.05, 1]})
-pm = axL.pcolormesh(q1, q0, W.real, cmap="Blues", shading="nearest",
+pm = axL.pcolormesh(q0, q1, W.real.T, cmap="Blues", shading="nearest",
                     vmin=0, vmax=np.percentile(W.real, 99.5), rasterized=True)
-axL.set_xlabel(r"$q^1$")
-axL.set_ylabel(r"$q^0$")
-axL.set_title(rf"$W^{{00}}(q^0,q^1)$ meson packet, $k_0={k0:.2f}$, "
-              rf"$N_s={ns}$ (101 qubits)", fontsize=10.5)
+axL.set_xlabel(r"$q^0$")
+axL.set_ylabel(r"$q^1$")
+axL.set_title(rf"$W^{{00}}(q^0,q^1)$ meson packet, $k_0={k0:.2f}$",
+              fontsize=10.5)
 axL.grid(False)
 fig.colorbar(pm, ax=axL, pad=0.02)
 

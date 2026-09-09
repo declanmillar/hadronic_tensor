@@ -52,10 +52,14 @@ import sys
 # (skip-existing logic keeps workers from redoing finished points).
 # single-point seed-ensemble mode: argv = point <pi_denom> <mode> <seed>
 SUFFIX = ""
-if len(sys.argv) == 5 and sys.argv[1] == "point":
+CHI = None                       # optional bond cap for the evolution
+if len(sys.argv) >= 5 and sys.argv[1] == "point":
     _d, _m, _s = int(sys.argv[2]), sys.argv[3], int(sys.argv[4])
     LADDER = [(np.pi / _d, _m, _s)]
     SUFFIX = f"_s{_s}"
+    if len(sys.argv) > 5:        # capped-chi variant: point <d> <mode> <s> <chi>
+        CHI = int(sys.argv[5])
+        SUFFIX += f"_chi{CHI}"
 elif len(sys.argv) > 1:
     half = int(sys.argv[1])
     LADDER = [pt for i, pt in enumerate(LADDER) if i % 2 == half]
@@ -84,9 +88,10 @@ for delta, mode, seed in LADDER:
     for t in TIMES:
         d = backends.hadamard_correlator_aer(
             lat, None, insert, probes, M0, G2, ETA, [t], dt_target=0.5,
-            method="matrix_product_state", mps_trunc=1e-8,
+            method="matrix_product_state", mps_trunc=1e-8, mps_max_bond=CHI,
             initial_mps=mps, initial_perm=perm, circuit_transform=tf)
         rows.append(d)
+        log(f"{tag}: t={t:.1f} done")
     corr = np.concatenate([r.correlator for r in rows], axis=0)
     one = np.concatenate([r.probe_expect for r in rows], axis=0)
     np.savez(f"data/synthladder_{tag}.npz", times=TIMES, corr=corr,

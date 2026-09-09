@@ -17,11 +17,9 @@ from htensor import Z2Lattice, analysis, spectroscopy
 
 # Okabe-Ito, fixed assignment order (legacy paper style)
 OI = ["#0072B2", "#D55E00", "#009E73", "#E69F00", "#CC79A7", "#000000"]
-plt.rcParams.update({
-    "font.family": "serif", "mathtext.fontset": "stix",
-    "font.size": 11, "axes.labelsize": 12,
-    "axes.grid": True, "grid.alpha": 0.25, "grid.linewidth": 0.6,
-})
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from paper_style import *  # usetex + OI palette + dev()
 
 path = sys.argv[1] if len(sys.argv) > 1 else "data/w00_vac_ns50.npz"
 d = np.load(path)
@@ -53,32 +51,38 @@ fig, (axL, axR) = plt.subplots(
     gridspec_kw={"width_ratios": [1.05, 1]})
 
 # ---- left: heatmap (sequential single hue), dispersion overlay
-pm = axL.pcolormesh(q1, q0, Wr, cmap="Blues", shading="nearest",
+pm = axL.pcolormesh(q0, q1, Wr.T, cmap="Blues", shading="nearest",
                     vmin=0.0, vmax=np.percentile(Wr, 99.5), rasterized=True)
-axL.plot(k_ed, e_ed, "o", ms=7, mfc="none", mew=1.8, color=OI[1],
+axL.plot(e_ed, k_ed, "o", ms=7, mfc="none", mew=1.8, color=OI[1],
          label=r"ED meson $E(k)$ ($N_s=8$)")
-axL.set_xlabel(r"$q^1$")
-axL.set_ylabel(r"$q^0$")
-axL.set_title(rf"$W^{{00}}_{{\rm vac}}(q^0,q^1)$,  $N_s={ns}$ (101 qubits, MPS)",
+axL.set_xlabel(r"$q^0$")
+axL.set_ylabel(r"$q^1$")
+axL.set_title(r"$W^{00}_{\rm vac}(q^0,q^1)$  (MPS, 101 qubits)",
               fontsize=11)
 axL.legend(loc="upper left", framealpha=0.9, fontsize=9)
 axL.grid(False)
 fig.colorbar(pm, ax=axL, pad=0.02, label=r"$W^{00}$")
 
-# ---- right: cuts with window-systematic bands
-cut_ks = [k for k in (0, len(ks) // 3, 2 * len(ks) // 3, len(ks) - 1)]
-for i, j in enumerate(cut_ks):
-    axR.fill_between(q0, Wr[:, j] - spread[:, j] / 2, Wr[:, j] + spread[:, j] / 2,
-                     color=OI[i], alpha=0.22, lw=0)
-    axR.plot(q0, Wr[:, j], color=OI[i], lw=1.8)
-    ipk = np.argmax(Wr[:, j])
-    axR.annotate(rf"$q^1={q1[j]:.2f}$", (q0[ipk], Wr[ipk, j]),
-                 textcoords="offset points", xytext=(6, 4),
-                 color=OI[i], fontsize=9)
-axR.axhline(0, color="0.4", lw=0.7)
+# ---- right: log-scale cuts; the q1=0 channel is an EXACT null (charge
+# conservation, J0(q1=0)=Q, Q|Omega>=0), so its content is a data-driven
+# artifact floor (window leakage + ringing) against which real peaks stand.
+FLOOR = 1e-5
+null = np.abs(Wr[:, 0])
+axR.fill_between(q0, FLOOR, np.clip(null, FLOOR, None), color="0.6", alpha=0.35,
+                 lw=0, label=r"$q^1{=}0$ null floor")
+phys_ks = [len(ks) // 3, 2 * len(ks) // 3, len(ks) - 1]
+for i, j in enumerate(phys_ks):
+    aug = np.sqrt((spread[:, j] / 2) ** 2 + null ** 2)  # window scan (+) null floor
+    axR.fill_between(q0, np.clip(Wr[:, j] - aug, FLOOR, None),
+                     np.clip(Wr[:, j] + aug, FLOOR, None), color=OI[i], alpha=0.20, lw=0)
+    axR.plot(q0, np.clip(Wr[:, j], FLOOR, None), color=OI[i], lw=1.6,
+             label=rf"$q^1={q1[j]:.2f}$")
+axR.set_yscale("log")
+axR.set_ylim(FLOOR * 0.7, 0.4)
 axR.set_xlabel(r"$q^0$")
 axR.set_ylabel(r"$W^{00}_{\rm vac}(q^0, q^1)$")
-axR.set_title("cuts, band = window-scan systematic", fontsize=11)
+axR.set_title(r"cuts (log); band = window scan $\oplus$ null floor", fontsize=10)
+axR.legend(fontsize=8.5, loc="upper left")
 
 out = path.replace(".npz", ".pdf")
 fig.savefig(out, dpi=200)
