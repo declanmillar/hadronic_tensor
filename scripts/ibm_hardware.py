@@ -351,7 +351,7 @@ def analyze_t3(jobfile, metas, results):
     depth-matched mirror circuit, whose exact truth is the t=0 slice (from
     data/hw_t3_ideal50_*.npz):
       kappa_v(t) = sx_mirror(t,v) / sx_ideal(0,v)    ancilla-sector damping
-      beta_v(t)  = (B_plain_mirror(t,v)-1/2)/(B_ideal(0,v)-1/2)
+      beta_v(t)  = (B_plain_mirror(t,v)-id_b)/(B_ideal(0,v)-id_b)
     The t=0 slice is its own mirror.
 
     metas/results are LISTS: multiple jobs covering the same circuits are
@@ -411,9 +411,9 @@ def analyze_t3(jobfile, metas, results):
             m = bn[f"m{t:.1f}"] if t > 0 else p
             kap = np.where(np.abs(sx_i0) > 0.02, m["sx"] / sx_i0, np.nan)
             kap = np.where(np.isnan(kap), np.nanmedian(kap), kap)
-            bet = np.where(np.abs(b_i0 - 0.5) > 0.02,
-                           (m["B"] - 0.5) / (b_i0 - 0.5), 1.0)
-            b_cal = 0.5 + (p["B"] - 0.5) / bet
+            bet = np.where(np.abs(b_i0 - id_b) > 0.02,
+                           (m["B"] - id_b) / (b_i0 - id_b), 1.0)
+            b_cal = id_b + (p["B"] - id_b) / bet
             anc_raw = c_a * (p["sx"] + 1j * p["sy"]) + id_a * (p["B"] - id_b)
             anc_cal = c_a * (p["sx"] + 1j * p["sy"]) / kap
             kerr = np.where(np.abs(sx_i0) > 0.02, m["sxe"] / np.abs(sx_i0),
