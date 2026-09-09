@@ -165,10 +165,15 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
     git = R.git_stamp()
     res.add("env", R.PASS if env["pinned_ok"] else R.FAIL,
             "pinned" if env["pinned_ok"] else "; ".join(env["pin_mismatches"]))
-    if git.get("dirty"):
+    if not git.get("commit"):
+        # an unpacked bundle is not a checkout: provenance comes from the
+        # record and MANIFEST.sha256 instead, which is the normal case for a
+        # recipient and must not stop the gate
+        res.add("git", R.PASS, "not a git checkout (provenance from the record and MANIFEST.sha256)")
+    elif git.get("dirty"):
         res.add("git", R.WARN, f"uncommitted changes under htq_hw: {git['dirty_files'][:3]}")
     else:
-        res.add("git", R.PASS, f"{git.get('tag')} {git.get('commit', '')[:8]}")
+        res.add("git", R.PASS, f"{git.get('tag') or ''} {git['commit'][:8]}".strip())
 
     # ---- A1 target ------------------------------------------------------
     be = T.resolve_backend(target, fractional=(basis == "rzz"), allow_standin=not require_real)

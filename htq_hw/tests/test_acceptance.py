@@ -154,3 +154,17 @@ def test_bundle_refuses_warnings_unless_accepted(scratch):
     rec, _ = _require_acceptance(
         argparse.Namespace(acceptance=str(p), ns=50, allow_fast=False, accept_warnings=True), d)
     assert rec["warnings"] == ["target: offline stand-in"]
+
+
+def test_record_summary_outside_a_git_checkout(scratch):
+    """A recipient unpacks the bundle and runs the gate in a plain directory.
+    git_stamp returns commit=None there, which used to crash the gate before
+    it validated anything."""
+    p = str(scratch / "nogit.json")
+    R.write_record(p, "acceptance", {"level": "full", "steps": [], "warnings": [], "failures": [],
+                                     "env": R.env_stamp(),
+                                     "git": {"commit": None, "tag": None, "dirty": False}}, R.PASS)
+    rec = R.load_record(p)
+    rec["git"] = {"commit": None, "tag": None, "dirty": False}
+    txt = R.summarize(rec)
+    assert "no git checkout" in txt and "acceptance: PASS" in txt

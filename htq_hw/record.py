@@ -98,9 +98,11 @@ def load_record(path) -> dict:
 
 def summarize(rec: dict) -> str:
     """One page a human can read before shipping."""
+    g = rec.get("git", {})
+    prov = (f"git {g.get('tag') or g.get('commit', '')[:8]}"
+            + (" (DIRTY)" if g.get("dirty") else "")) if g.get("commit") else "no git checkout"
     L = [f"{rec['kind']}: {rec['status']}   ({rec.get('written')})",
-         f"  htq_hw {rec['env']['htq_hw']}  git {rec['git'].get('tag')} "
-         f"{'(DIRTY)' if rec['git'].get('dirty') else ''}",
+         f"  htq_hw {rec['env']['htq_hw']}  {prov}",
          f"  environment pinned: {rec['env']['pinned_ok']}"
          + ("" if rec["env"]["pinned_ok"] else f"  {rec['env']['pin_mismatches']}")]
     if "target" in rec:
