@@ -26,3 +26,21 @@ z2_matter_qc-master/pauli_twirling/*.txt
 # scratch outputs
 *.log
 scratch/
+
+# internal reporting (management/admin) -- not for the public repo
+reports/
+
+# not for the public repo: award paperwork (signatures), third-party papers,
+# collaborator review material, scratch
+letter/
+refs/
+ref
+ref/
+scratchpad/
+*.xml
+mike
+mike/
+mike_changes.pdf
+flo
+flo/
+Hadronic_FLO.pdf
