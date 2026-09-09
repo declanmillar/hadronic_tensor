@@ -75,13 +75,86 @@ def controlled_pauli(qc: QuantumCircuit, anc: int, ops: dict):
         getattr(qc, "c" + p.lower())(anc, q)
 
 
-def hadamard_test_circuit(n_sys: int, insertion: dict, evolution) -> QuantumCircuit:
+_BASIS_PRE = {"Z": (), "X": ("h",), "Y": ("sdg", "h")}     # P -> Z
+_BASIS_POST = {"Z": (), "X": ("h",), "Y": ("h", "s")}      # Z -> P
+
+
+def parity_ladder_controlled_pauli(qc: QuantumCircuit, anc: int, ops: dict,
+                                   path: list[tuple[int, int]]):
+    """Controlled-P for a weight-w Pauli string P = prod_q P_q using ONE
+    ancilla two-qubit gate: rotate every P_q to Z, accumulate the parity of
+    the string onto a hub qubit with a CX ladder along `path` (list of
+    (control, target) pairs; the last target is the hub, which must be the
+    only qubit adjacent to the ancilla), apply CZ(anc, hub), uncompute.
+    Unitarily equal to controlled_pauli(qc, anc, ops) (tests/test_m5_*).
+    Two-qubit cost 2 len(path) + 1, all CX on `path` edges -- nearest
+    neighbour on a ring/ladder embedding, unlike the naive controlled
+    string, which needs the ancilla adjacent to every qubit of P."""
+    qubits = set(ops)
+    touched = {q for pair in path for q in pair}
+    if path:
+        hub = path[-1][1]
+        if touched != qubits:
+            raise ValueError(f"path qubits {sorted(touched)} != string {sorted(qubits)}")
+    else:
+        (hub,) = qubits
+    for q, p in sorted(ops.items()):
+        for g in _BASIS_PRE[p]:
+            getattr(qc, g)(q)
+    for c, t in path:
+        qc.cx(c, t)
+    qc.cz(anc, hub)
+    for c, t in reversed(path):
+        qc.cx(c, t)
+    for q, p in sorted(ops.items()):
+        for g in _BASIS_POST[p]:
+            getattr(qc, g)(q)
+
+
+def j1_ladder_path(ops: dict, accumulate: str = "site") -> list[tuple[int, int]]:
+    """CX path for a bulk J^1 Pauli term {a: X/Y, l: Z, b: Y/X} (a < l < b,
+    consecutive ring qubits).  accumulate = 'site' (hub a; ring/heavy-hex,
+    ancilla next to the left site -- same ancilla position as the J^0 CZ),
+    'link' (hub l), or 'pendant' (square-lattice ladder embedding where the
+    link qubit is pendant to the RIGHT site b: edges (a,b) and (l,b); hub a)."""
+    if len(ops) != 3:
+        raise ValueError("bulk J^1 term has weight 3 (seam bond carries a JW string)")
+    a, l, b = sorted(ops)
+    if accumulate == "site":
+        return [(b, l), (l, a)]
+    if accumulate == "link":
+        return [(a, l), (b, l)]
+    if accumulate == "pendant":
+        return [(l, b), (b, a)]
+    raise ValueError(accumulate)
+
+
+def j1_gadget(qc: QuantumCircuit, anc: int, ops: dict, accumulate: str = "site"):
+    """Controlled J^1 Pauli term via the parity ladder (5 two-qubit gates)."""
+    parity_ladder_controlled_pauli(qc, anc, ops, j1_ladder_path(ops, accumulate))
+
+
+def make_ladder_gadget(accumulate: str = "site"):
+    """-> gadget(qc, anc, ops) usable as `hadamard_test_circuit(..., gadget=)`:
+    weight-1 strings fall back to the single controlled Pauli."""
+    def gadget(qc, anc, ops):
+        if len(ops) == 1:
+            controlled_pauli(qc, anc, ops)
+        else:
+            j1_gadget(qc, anc, ops, accumulate)
+    return gadget
+
+
+def hadamard_test_circuit(n_sys: int, insertion: dict, evolution,
+                          gadget=None) -> QuantumCircuit:
     """Ancilla (qubit n_sys) in |+>, controlled Pauli string, then evolution.
-    Measure X_anc (x) M for Re<M(t) P>, Y_anc (x) M for Im<M(t) P>."""
+    Measure X_anc (x) M for Re<M(t) P>, Y_anc (x) M for Im<M(t) P>.
+    `gadget(qc, anc, ops)` overrides the naive controlled_pauli insertion
+    (e.g. make_ladder_gadget for hardware-shaped J^1 insertions)."""
     qc = QuantumCircuit(n_sys + 1)
     anc = n_sys
     qc.h(anc)
-    controlled_pauli(qc, anc, insertion)
+    (gadget or controlled_pauli)(qc, anc, insertion)
     qc.append(evolution, range(n_sys))
     return qc
 
@@ -124,8 +197,9 @@ def _plain_expectations(psi0, n_sys, ops: list[SparsePauliOp], evolution_factory
 
 def hadamard_correlator_sv(psi0: np.ndarray, insert_op: SparsePauliOp,
                            probe_ops: list[SparsePauliOp], evolution_factory,
-                           times) -> CorrelatorData:
-    """Statevector-exact Hadamard-test protocol."""
+                           times, gadget=None) -> CorrelatorData:
+    """Statevector-exact Hadamard-test protocol (`gadget` as in
+    hadamard_test_circuit)."""
     times = np.asarray(times, dtype=float)
     n_sys = insert_op.num_qubits
     id_a, terms_a = split_current(insert_op)
@@ -142,7 +216,7 @@ def hadamard_correlator_sv(psi0: np.ndarray, insert_op: SparsePauliOp,
 
     for ops_a, c_a in terms_a:
         for i, t in enumerate(times):
-            qc = hadamard_test_circuit(n_sys, ops_a, evolution_factory(t))
+            qc = hadamard_test_circuit(n_sys, ops_a, evolution_factory(t), gadget)
             sv = _initial_sv(psi0, extra_qubits=1).evolve(qc)
             for j, bp in enumerate(probes_p):
                 re = sv.expectation_value(_with_ancilla(bp, "X"))

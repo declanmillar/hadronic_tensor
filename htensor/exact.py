@@ -77,15 +77,18 @@ def pauli_linear_operator(op: SparsePauliOp) -> spla.LinearOperator:
     return spla.LinearOperator((N, N), matvec=matvec, dtype=complex)
 
 
-def strong_coupling_vacuum(lat: Z2Lattice) -> np.ndarray:
-    """Product state: even matter sites |0>, odd |1>, links |+>.
+def strong_coupling_vacuum(lat: Z2Lattice, link_ref: str = "+") -> np.ndarray:
+    """Product state: even matter sites |0>, odd |1>, links |+> (or |-> for
+    link_ref="-"; see trotter.strong_coupling_vacuum_circuit).
 
     Satisfies G_n = +1 for all n and Q = 0; the m0 -> infinity vacuum and the
     reference state for adiabatic/variational preparation.
     """
+    if link_ref not in ("+", "-"):
+        raise ValueError(f"link_ref must be '+' or '-', got {link_ref!r}")
     zero = np.array([1.0, 0.0])
     one = np.array([0.0, 1.0])
-    plus = np.array([1.0, 1.0]) / np.sqrt(2)
+    plus = np.array([1.0, 1.0 if link_ref == "+" else -1.0]) / np.sqrt(2)
     single = {}
     for n in range(lat.ns):
         single[lat.site_qubit(n)] = zero if n % 2 == 0 else one

@@ -51,9 +51,14 @@ def translate(psi: np.ndarray, lat: Z2Lattice) -> np.ndarray:
 
 
 def _t2_phases(states: list[np.ndarray], energies: np.ndarray, lat: Z2Lattice,
-               degeneracy_tol: float = 1e-6):
+               degeneracy_tol: float = 1e-5):
     """Resolve T2 (one-spatial-site translation) eigenphases, diagonalizing
-    T2 inside each degenerate energy cluster."""
+    T2 inside each degenerate energy cluster.
+
+    degeneracy_tol must exceed eigsh's numerical splitting of a degenerate
+    +-k pair (typically ~1e-6 .. 1e-5 in absolute energy): a pair split
+    wider than the tolerance lands in two 1-dim clusters whose real
+    eigenvectors have no definite T2 phase, and the momentum is lost."""
     resolved_states, phases = [], []
     i = 0
     while i < len(states):
@@ -75,7 +80,8 @@ def _t2_phases(states: list[np.ndarray], energies: np.ndarray, lat: Z2Lattice,
 
 # ------------------------------------------------------------- meson band
 def meson_band(lat: Z2Lattice, m0, g2, eta, n_states: int | None = None,
-               matrix_free: bool = False, ncv: int | None = None) -> dict:
+               matrix_free: bool = False, ncv: int | None = None,
+               degeneracy_tol: float = 1e-5) -> dict:
     """Vacuum + lowest physical Q=0 states resolved by momentum.
 
     Returns {vacuum, e0, k, energy, states}: for each momentum k = 2 pi j / Nx
@@ -83,7 +89,12 @@ def meson_band(lat: Z2Lattice, m0, g2, eta, n_states: int | None = None,
     lowest excitation per momentum is one meson (true at strong-ish coupling).
     matrix_free/ncv: see exact.lowest_physical_states (use above ~22 qubits);
     with a small n_states only the low-|k| part of the band is resolved.
+    degeneracy_tol: energy-cluster tolerance for the T2 resolution (see
+    _t2_phases); a warning is issued for every grid momentum that receives
+    no band state.
     """
+    import warnings
+
     nx = lat.nx
     if n_states is None:
         n_states = 2 * nx + 4
@@ -91,7 +102,8 @@ def meson_band(lat: Z2Lattice, m0, g2, eta, n_states: int | None = None,
                                                   matrix_free=matrix_free,
                                                   ncv=ncv)
     states = [vecs[:, i] for i in range(vecs.shape[1])]
-    resolved, phases = _t2_phases(states, energies, lat)
+    resolved, phases = _t2_phases(states, energies, lat,
+                                  degeneracy_tol=degeneracy_tol)
     # recompute energies for resolved combinations (unchanged within clusters)
     H_op = ham.build_hamiltonian(lat, m0, g2, eta)
     if matrix_free:
@@ -119,6 +131,12 @@ def meson_band(lat: Z2Lattice, m0, g2, eta, n_states: int | None = None,
                 band_e.append(e - e0)
                 band_states.append(s)
                 break
+        else:
+            warnings.warn(
+                f"meson_band: no state with T2 phase {k:+.4f} among the "
+                f"{len(resolved) - 1} excited levels (ns={lat.ns}); raise "
+                f"n_states, or degeneracy_tol if a +-k pair was split",
+                RuntimeWarning, stacklevel=2)
     return {"vacuum": vacuum, "e0": e0, "k": np.array(band_k),
             "energy": np.array(band_e), "states": band_states,
             "all_energies": e_res, "all_phases": phases}

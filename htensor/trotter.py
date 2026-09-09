@@ -29,13 +29,25 @@ def seam_sign(lat: Z2Lattice) -> int:
     return (-1) ** (lat.ns // 2 + 1)
 
 
-def strong_coupling_vacuum_circuit(lat: Z2Lattice) -> QuantumCircuit:
-    """|0> (even matter), |1> (odd matter), |+> (links): Clifford, physical."""
+def strong_coupling_vacuum_circuit(lat: Z2Lattice,
+                                   link_ref: str = "+") -> QuantumCircuit:
+    """|0> (even matter), |1> (odd matter), |+> (links): Clifford, physical.
+
+    link_ref: "+" (default, the g2 -> +infinity-favoured sigma^x = +1 state
+    used by all production runs) or "-" (links |->, sigma^x = -1).  Both
+    satisfy G_n = +1 (each site sees two links, so the sign squares away);
+    at large m0 / small g2 (e.g. the dhk couplings (1.0, 0.6, 1.0)) the
+    interacting vacuum sits closer to the |-> reference and the variational
+    ansatz converges only from there (qPDF campaign, 2026-08)."""
+    if link_ref not in ("+", "-"):
+        raise ValueError(f"link_ref must be '+' or '-', got {link_ref!r}")
     qc = QuantumCircuit(lat.n_qubits)
     for n in range(1, lat.ns, 2):
         qc.x(lat.site_qubit(n))
     for q in lat.link_qubits:
         qc.h(q)
+        if link_ref == "-":
+            qc.z(q)
     return qc
 
 
@@ -81,6 +93,20 @@ def trotter_circuit(lat: Z2Lattice, m0, g2, eta, t: float, n_steps: int) -> Quan
     for _ in range(n_steps):
         qc.compose(step, inplace=True)
     return qc
+
+
+def parametric_step(lat: Z2Lattice, m0, g2, eta, name: str = "t"):
+    """One second-order step with a SYMBOLIC step size (qiskit Parameter).
+
+    Hardware recipe (2026-09): transpile this once at optimization_level=3,
+    then assign_parameters({t: dt}) for the physics circuit and
+    ({t: MIRROR_EPS}) for the depth-matched mirror -- the two share an
+    identical two-qubit skeleton by construction (transpiling the
+    near-identity mirror numerically at O3 would delete its gates; O1 keeps
+    them but costs ~30% more two-qubit gates).  -> (circuit, parameter)."""
+    from qiskit.circuit import Parameter
+    p = Parameter(name)
+    return trotter_step(lat, m0, g2, eta, p), p
 
 
 def exact_evolution_gate(lat: Z2Lattice, m0, g2, eta, t: float) -> HamiltonianGate:

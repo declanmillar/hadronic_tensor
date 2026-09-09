@@ -67,6 +67,58 @@ def permute_pauli(op: SparsePauliOp, perm: dict[int, int],
     return SparsePauliOp(labels, op.coeffs)
 
 
+# ----------------------------------------------------------- chain routing
+# Aer's MPS handles a non-adjacent two-qubit gate by moving one qubit next to
+# its partner and back, with an SVD truncation at every move.  In the folded
+# ring order the hop pair (a, b) of a bond sits four chain sites apart (the
+# link qubit and the mirror-image qubits lie between), so a 50-site prep
+# incurs thousands of such excursions and the stored state is truncation-
+# limited even at bond cap 512 (packet <H> -49.3541 vs the converged
+# -49.3690, found 2026-09-03).  Routing the circuit onto the line with
+# explicit, persistent SWAPs (Sabre) keeps every gate chain-local; the
+# converged energy is then independent of cap (512-2048), threshold
+# (1e-10..1e-14) and routing seed, and matches exact statevectors at Ns=12.
+ROUTE_CHAIN = True
+ROUTE_SEED = 7
+
+
+def route_chain(circ: QuantumCircuit, n_total: int, seed: int = ROUTE_SEED):
+    """Sabre-route a chain-ordered circuit onto the linear chain of n_total
+    sites.  -> (routed circuit, fl) with fl[virtual chain position] = final
+    chain position after the inserted SWAPs."""
+    from qiskit.transpiler import CouplingMap
+    tqc = transpile(circ, coupling_map=CouplingMap.from_line(n_total),
+                    basis_gates=_AER_BASIS, initial_layout=list(range(n_total)),
+                    optimization_level=1, seed_transpiler=seed,
+                    routing_method="sabre")
+    fl = tqc.layout.final_index_layout()
+    return tqc, {i: int(fl[i]) for i in range(n_total)}
+
+
+def compose_perm(perm: dict[int, int], fl: dict[int, int]) -> dict[int, int]:
+    """logical -> chain position, after the routing permutation fl."""
+    return {q: fl[p] for q, p in perm.items()}
+
+
+def chain_transpile(circ: QuantumCircuit, perm: dict[int, int], n_total: int,
+                    circuit_transform=None, route: bool | None = None):
+    """Permute a logical circuit into chain order, transpile to the Aer basis,
+    apply an optional transform (e.g. a Pauli-noise trajectory -- applied
+    BEFORE routing so the simulation-only SWAPs stay noiseless), then route
+    onto the chain.  -> (circuit ready for Aer, perm_obs) where perm_obs maps
+    logical qubits to the chain positions in which observables must be read
+    (permute_pauli(op, perm_obs, n_total))."""
+    route = ROUTE_CHAIN if route is None else route
+    qc = permute_circuit(circ, perm, n_total)
+    tqc = transpile(qc, basis_gates=_AER_BASIS, optimization_level=1)
+    if circuit_transform is not None:
+        tqc = circuit_transform(tqc)
+    if not route:
+        return tqc, perm
+    tqc, fl = route_chain(tqc, n_total)
+    return tqc, compose_perm(perm, fl)
+
+
 def _simulator(method: str, mps_max_bond: int | None, mps_trunc: float,
                max_threads: int):
     from qiskit_aer import AerSimulator
@@ -81,7 +133,8 @@ def _simulator(method: str, mps_max_bond: int | None, mps_trunc: float,
 
 def prepare_state_mps(lat: Z2Lattice, prep: QuantumCircuit, anc_site: int,
                       cap: int = 512, trunc: float = 1e-10,
-                      max_threads: int = 4, circuit_transform=None):
+                      max_threads: int = 4, circuit_transform=None,
+                      sim_opts: dict | None = None):
     """Simulate the (expensive) preparation circuit ONCE at high accuracy and
     return (mps_data, perm) for reuse via set_matrix_product_state.
 
@@ -94,15 +147,15 @@ def prepare_state_mps(lat: Z2Lattice, prep: QuantumCircuit, anc_site: int,
 
     perm = _chain_perm(ring_chain_order(lat, ancilla_after=anc_site))
     n_tot = lat.n_qubits + 1
-    qc = permute_circuit(prep, perm, n_tot)
-    tqc = transpile(qc, basis_gates=_AER_BASIS, optimization_level=1)
-    if circuit_transform is not None:
-        tqc = circuit_transform(tqc)
+    # the returned perm is the chain order of the STORED state (routing SWAPs
+    # composed in); every consumer must read observables through it
+    tqc, perm = chain_transpile(prep, perm, n_tot, circuit_transform)
     tqc.save_matrix_product_state(label="mps")
     sim = AerSimulator(method="matrix_product_state",
                        matrix_product_state_max_bond_dimension=cap,
                        matrix_product_state_truncation_threshold=trunc,
-                       max_parallel_threads=max_threads)
+                       max_parallel_threads=max_threads,
+                       **(sim_opts or {}))
     data = sim.run(tqc).result().data()
     return data["mps"], perm
 
@@ -156,14 +209,17 @@ def hadamard_correlator_aer(lat: Z2Lattice, prep: QuantumCircuit,
     def run(circ, observables, perm):
         n_total = (n_sys + 1) if use_init else circ.num_qubits
         if perm is not None:
-            circ = permute_circuit(circ, perm, n_total)
-            observables = {lbl: permute_pauli(op, perm, n_total)
+            # chain order + explicit routing (ROUTE_CHAIN); observables are
+            # read through the composed permutation
+            tqc, perm_obs = chain_transpile(circ, perm, n_total, circuit_transform)
+            observables = {lbl: permute_pauli(op, perm_obs, n_total)
                            for lbl, op in observables.items()}
-        # transpile first: save/set instructions cannot pass the basis
-        # translator; basis-only transpilation does no routing
-        tqc = transpile(circ, basis_gates=_AER_BASIS, optimization_level=1)
-        if circuit_transform is not None:
-            tqc = circuit_transform(tqc)
+        else:
+            # transpile first: save/set instructions cannot pass the basis
+            # translator; basis-only transpilation does no routing
+            tqc = transpile(circ, basis_gates=_AER_BASIS, optimization_level=1)
+            if circuit_transform is not None:
+                tqc = circuit_transform(tqc)
         if use_init:
             full = QuantumCircuit(n_total)
             full.set_matrix_product_state(initial_mps)

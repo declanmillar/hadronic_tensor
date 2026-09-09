@@ -244,7 +244,7 @@ class PhysicalBasis:
 
 
 def deep_spectrum(lat: Z2Lattice, m0, g2, eta, k: int | None = None,
-                  degeneracy_tol: float = 1e-6, refl: bool = False):
+                  degeneracy_tol: float = 1e-5, refl: bool = False):
     """(gaps, T2 phases, energies[, R parities]) in the physical Q=0 sector.
 
     k=None -> dense eigh, ALL levels; else sparse eigsh lowest k.

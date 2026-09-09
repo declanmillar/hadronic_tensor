@@ -27,11 +27,14 @@ from .gaugefixed import PhysicalBasis
 
 
 def gauge_fixed_system(lat: Z2Lattice, m0, g2, eta, n_band: int = 40,
-                       full_band: bool = True, ncv: int | None = None):
+                       full_band: bool = True, ncv: int | None = None,
+                       degeneracy_tol: float = 1e-5):
     """(-> dict) vacuum, single-meson band, and reduced H in the Q=0
     physical sector.  full_band=False resolves only the vacuum and mass gap
     (k=4 eigsh) -- enough for R(t) at large volume where the full band
-    eigensolve is the bottleneck."""
+    eigensolve is the bottleneck.  degeneracy_tol: energy-cluster tolerance
+    for the T2 resolution; must exceed eigsh's splitting of degenerate +-k
+    pairs (~1e-6..1e-5) or the pair is silently dropped from the band."""
     basis = PhysicalBasis(lat)
     sel = np.flatnonzero(basis.q == 0)
     # build H directly on the Q=0 subspace (full-basis COO would exhaust
@@ -55,7 +58,7 @@ def gauge_fixed_system(lat: Z2Lattice, m0, g2, eta, n_band: int = 40,
     i = 1
     while i < len(w):
         j = i + 1
-        while j < len(w) and w[j] - w[i] < 1e-6:
+        while j < len(w) and w[j] - w[i] < degeneracy_tol:
             j += 1
         if w[i] - w[0] < 2 * M - 0.1:         # band-1 window
             blk = v[:, i:j]
@@ -63,8 +66,13 @@ def gauge_fixed_system(lat: Z2Lattice, m0, g2, eta, n_band: int = 40,
             resolved = blk @ U
             for c in range(j - i):
                 kk = round(float(np.angle(ev[c])), 4)
-                band[kk] = (w[i] - w[0], resolved[:, c] / np.linalg.norm(resolved[:, c]))
-                band_states.append(resolved[:, c] / np.linalg.norm(resolved[:, c]))
+                st = resolved[:, c] / np.linalg.norm(resolved[:, c])
+                # band[k] is the LOWEST level at each momentum (the single
+                # meson); later levels in the window (band-2 / M* / two-
+                # meson states at the same k) must not overwrite it.
+                if kk not in band:
+                    band[kk] = (w[i] - w[0], st)
+                band_states.append(st)
         i = j
     return dict(basis=basis, sel=sel, H=H, T=T, vac=vac, evals=w, evecs=v,
                 band=band, band_states=band_states, M=M)
@@ -84,14 +92,26 @@ def meson_operator(lat: Z2Lattice, basis: PhysicalBasis, sel, eta,
     return ops
 
 
-def packet_operator(meson_ops, kbar, sigma, mu, nx):
+def packet_operator(meson_ops, kbar, sigma, mu, nx, staggered=False):
     """M[phi] = sum_x phi(x) O_x with phi(x) = sum_k Psi(k) e^{ikx},
     Psi(k) = exp(-i k x_mu) exp(-(k-kbar)^2/4 sigma^2), k = 2 pi j / nx.
 
     mu is the DHK center in STAGGERED-site units; the meson operators live
     on physical sites, so the physical center is x_mu = mu/2 (mod nx).  (The
     earlier physical=staggered identification wrapped mu=19 -> site 6 on the
-    13-site ring, collapsing the two packets onto each other.)"""
+    13-site ring, collapsing the two packets onto each other.)
+
+    staggered=True: the DHK Gaussian (kbar, sigma) is written in the
+    STAGGERED quasi-momentum k of the 2*nx-site lattice DHK actually simulate.
+    A meson is a composite on a 2-staggered-site physical cell, so its COM
+    momentum on the physical ring is K = 2 k (site doubling).  Referring the
+    envelope to the physical momentum K that indexes the meson dispersion then
+    maps (kbar, sigma) -> (2 kbar, 2 sigma): the single DISCRETE (1 vs 2)
+    site-doubling ambiguity intrinsic to staggered fermions, no free knob.
+    The displacement phase is unchanged because exp(-i k mu) = exp(-i K mu/2)
+    = exp(-i K x_mu) with x_mu = mu/2 already the physical center."""
+    if staggered:
+        kbar, sigma = 2.0 * kbar, 2.0 * sigma
     x_mu = (mu / 2.0) % nx
     ks = 2 * np.pi * np.arange(nx) / nx
     ks = np.where(ks > np.pi, ks - 2 * np.pi, ks)
@@ -104,14 +124,15 @@ def packet_operator(meson_ops, kbar, sigma, mu, nx):
     return M
 
 
-def two_meson_state(gf, eta, packets, chi: float = 1.0):
+def two_meson_state(gf, eta, packets, chi: float = 1.0, staggered=False):
     """|Psi> = M[phi_1] M[phi_2] |Omega>, normalized. packets: list of
-    (kbar, sigma, mu)."""
+    (kbar, sigma, mu). staggered=True forwards the site-doubling convention
+    (K = 2 k) to packet_operator."""
     lat_nx = gf["basis"].lat.nx
     mops = meson_operator(gf["basis"].lat, gf["basis"], gf["sel"], eta, chi)
     psi = gf["vac"]
     for kbar, sigma, mu in packets:
-        M = packet_operator(mops, kbar, sigma, mu, lat_nx)
+        M = packet_operator(mops, kbar, sigma, mu, lat_nx, staggered=staggered)
         psi = M @ psi
     return psi / np.linalg.norm(psi)
 

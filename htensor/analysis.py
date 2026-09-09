@@ -105,3 +105,19 @@ def window_scan(t_full, x, c_full, q0s, q1s, sigma_t, sigma_x,
     ws = np.stack([windowed_ft(t_full, x, c_full, q0s, q1s, f * sigma_t,
                                f * sigma_x) for f in factors])
     return ws[len(factors) // 2], np.ptp(ws.real, axis=0)
+
+
+def onesided_ft(times, x, G, q0, q1, sigma_t, sigma_x, dt, dx):
+    """One-sided (t >= 0) Gaussian-windowed transform, t = 0 half-weighted:
+    W1 = 2 Re sum_{t,x} dt dx e^{i(q0 t - q1 x)} w(t) w(x) G(x, t).
+
+    This is the production transform for wavepacket states (a controlled
+    hermiticity completion; see main_v4 sec. HT and the 2026-07 referee
+    record).  Moved here from scripts_helpers_ridge.py unchanged."""
+    times = np.asarray(times, float)
+    wt = np.exp(-times**2 / (2 * sigma_t**2)).copy()
+    wt[0] *= 0.5
+    wx = np.exp(-np.asarray(x, float)**2 / (2 * sigma_x**2))
+    et = np.exp(1j * np.outer(np.atleast_1d(q0), times))
+    ex = np.exp(-1j * np.outer(np.asarray(x, float), np.atleast_1d(q1)))
+    return 2 * np.real(dt * dx * (et @ ((wt[:, None] * wx[None, :]) * G) @ ex))
