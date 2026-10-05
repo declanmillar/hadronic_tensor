@@ -24,6 +24,12 @@ def test_families_needed_includes_j0_for_mirror_calibration():
     assert "qpdf" not in fams                       # qpdf pubs need no ideal grid
     qcard = next((s.card for s in CP.compose_presets(["qpdf-scan"]) if s.family == "qpdf"), None)
     assert AC._families_for(CP.compose_presets(["qpdf-scan"]), qcard) == set()
+    # the plain family reads one_pt_J0 out of the j0 grid, so it needs no grid
+    # of its own; counting it as missing failed the gate on every j0 card
+    vac = CP.compose_presets(["vac-w00"])
+    vcard = next(s.card for s in vac if s.family == "plain")
+    assert "plain" in {s.family for s in vac if s.card == vcard}
+    assert AC._families_for(vac, vcard) == {"j0"}
 
 
 def test_rehearse_times_are_t0_plus_the_shortest_slice_per_card():

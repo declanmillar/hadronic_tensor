@@ -47,10 +47,17 @@ class Result:
         return R.FAIL if self.failures else (R.WARN if self.warnings else R.PASS)
 
 
+# families whose reference does not live in a grid of their own: qpdf pubs are
+# reduced against data/qpdf_card_refs.npz, and the plain-evolution pubs read
+# their one-point reference from one_pt_J0 inside the j0 grid
+NO_OWN_GRID = ("qpdf", "plain")
+
+
 def _families_for(specs, cname: str) -> set:
     """Families a card actually needs a grid for: those its specs measure,
     plus j0 whenever anything is mirror-calibrated against it."""
-    fams = {s.family for s in specs if (s.card or "") == cname and s.family != "qpdf"}
+    fams = {s.family for s in specs if (s.card or "") == cname
+            and s.family not in NO_OWN_GRID}
     if any(s.mirror for s in specs if (s.card or "") == cname):
         fams.add("j0")
     return fams
