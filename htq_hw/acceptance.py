@@ -162,7 +162,7 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         mode: str = "auto", require_real: bool = False, cache_dir=None, threads: int = 2,
         shots_scale: float = 1.0, budget: float = 180.0, rep_time: float = 250e-6,
         tol: float = 5e-3, times=None, wing_surrogate: str | None = None,
-        rehearse_shots: int = 4000, kappa_tol: float = 0.25,
+        rehearse_shots: int = 16000, kappa_tol: float = 0.25,
         refs: str = "data/qpdf_card_refs.npz", keep_rehearsal: str | None = None,
         log=print) -> dict:
     """-> the record dict (also the return value of the CLI)."""

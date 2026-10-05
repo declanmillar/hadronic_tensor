@@ -620,8 +620,11 @@ def main(argv=None):
     ac.add_argument("--cache", default=str(pathlib.Path.home() / ".cache" / "htq_hw"),
                     help="qpy / prep-MPS cache ('' disables); the full level needs it")
     ac.add_argument("--threads", type=int, default=2)
-    ac.add_argument("--accept-shots", type=int, default=4000,
-                    help="shots per pub in the level=full rehearsal (statistics, not physics)")
+    ac.add_argument("--accept-shots", type=int, default=16000,
+                    help="shots per pub in the level=full rehearsal (statistics, not physics). "
+                         "Costs no QPU: this is the local Aer rehearsal, not the device plan. "
+                         "4000 leaves the J1 kappa estimator shot-limited at |kappa-1| ~ 0.19 "
+                         "against a 0.25 tolerance; 16000 halves that for ~4 s per pub.")
     ac.add_argument("--keep-rehearsal", default=None, metavar="DIR",
                     help="keep the sampled bits here instead of a temp dir, so a failing "
                          "analysis can be re-run without resampling (over an hour at Ns=50)")

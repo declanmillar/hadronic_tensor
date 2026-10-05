@@ -356,8 +356,12 @@ Steps, each a PASS/WARN/FAIL line in the record:
 | rehearse (full) | a card that produces no slices, or a noiseless kappa(centre) off 1 by more than `--kappa-tol` |
 
 `--level fast` stops after `plan`; `--level full` adds `check` and a sampled `rehearse` + `analyze`
-round trip at t = 0 and the shortest evolved slice of each card (`--accept-shots`, default 4000:
-statistics do not matter here, the code path does).  `bundle` requires a full-level record whose
+round trip at t = 0 and the shortest evolved slice of each card (`--accept-shots`, default 16000).
+Those shots cost no QPU: the rehearsal is local Aer, not the device plan.  They are set high enough
+that the gate's own noise does not trip it, since the J1 kappa estimator has only 3 to 9 sites with a
+usable t = 0 reference and at 4000 shots sits at |kappa - 1| ~ 0.19 against a 0.25 tolerance.  On
+device those pubs get 60000 shots, so the hardware kappa is roughly four times better determined than
+the rehearsal's.  `bundle` requires a full-level record whose
 file hashes still match the tree, so a package cannot be shipped after an edit that was never
 validated.
 
