@@ -49,11 +49,23 @@ class Result:
 
 def _families_for(specs, cname: str) -> set:
     """Families a card actually needs a grid for: those its specs measure,
-    plus j0 whenever anything is mirror-calibrated against it."""
-    fams = {s.family for s in specs if (s.card or "") == cname and s.family != "qpdf"}
+    plus j0 whenever anything is mirror-calibrated against it.  ``plain`` is
+    not a separate ideal-grid family: its reference is ``one_pt_J0`` in the
+    card's ``ideal_j0.npz`` file."""
+    fams = {s.family for s in specs
+            if (s.card or "") == cname and s.family not in ("qpdf", "plain")}
     if any(s.mirror for s in specs if (s.card or "") == cname):
         fams.add("j0")
     return fams
+
+
+def _needs_plain_reference(specs, cname: str) -> bool:
+    return any((s.card or "") == cname and s.family == "plain" for s in specs)
+
+
+def _has_plain_reference(grid) -> bool:
+    """The plain-B_v calibration needs its t=0 value embedded in the J0 grid."""
+    return grid.has_row(0.0) and grid.b_plain(0.0) is not None
 
 
 def _surrogate_for(cname: str, template, cards=None):
@@ -225,8 +237,10 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
     coverage = {}
     for cname in sorted(cards):
         need = _families_for(specs, cname)
+        needs_plain = _needs_plain_reference(specs, cname)
         want_t = sorted({s.t for s in specs if (s.card or "") == cname})
-        entry = {"families_needed": sorted(need), "times_needed": want_t, "grids": {}}
+        entry = {"families_needed": sorted(need), "times_needed": want_t,
+                 "plain_reference_needed": needs_plain, "grids": {}}
         if not need:
             entry["note"] = "preparation-only card (no evolved pubs)"
             coverage[cname] = entry
@@ -244,6 +258,12 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
             absent = [t for t in want_t if t > 0 and not g.has_row(t)]
             entry["grids"][fam] = {"times": [float(x) for x in g.times],
                                    "missing_rows": absent, "id_a": g.id_a, "c_a": g.c_a}
+            if fam == "j0" and needs_plain:
+                has_plain = _has_plain_reference(g)
+                entry["grids"][fam]["plain_reference"] = (
+                    "one_pt_J0" if has_plain else None)
+                if not has_plain:
+                    missing.append("j0 (no t=0 one_pt_J0: cannot calibrate plain B_v)")
             if not g.has_row(0.0):
                 missing.append(f"{fam} (no t=0 row: cannot calibrate)")
             elif absent:

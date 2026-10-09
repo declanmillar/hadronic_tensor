@@ -22,8 +22,26 @@ def test_families_needed_includes_j0_for_mirror_calibration():
     fams = AC._families_for(specs, cname)
     assert "j1p1" in fams and "j0" in fams          # every mirror calibrates against J0
     assert "qpdf" not in fams                       # qpdf pubs need no ideal grid
+    assert "plain" not in fams                      # stored as one_pt_J0 in the J0 grid
+    assert AC._needs_plain_reference(specs, cname)
     qcard = next((s.card for s in CP.compose_presets(["qpdf-scan"]) if s.family == "qpdf"), None)
     assert AC._families_for(CP.compose_presets(["qpdf-scan"]), qcard) == set()
+
+
+def test_plain_reference_is_embedded_in_the_j0_grid():
+    for card in ("prod_k1.26_s0.75_ns50", "prod_vac_ns50",
+                 "relA_k1.26_s0.75_ns50", "relA_vac_ns50"):
+        grid = A.IdealGrid(f"htq_hw/cards/{card}/ideal_j0.npz", expect_ns=50)
+        assert AC._has_plain_reference(grid), card
+
+    class MissingPlain:
+        def has_row(self, _t):
+            return True
+
+        def b_plain(self, _t):
+            return None
+
+    assert not AC._has_plain_reference(MissingPlain())
 
 
 def test_rehearse_times_are_t0_plus_the_shortest_slice_per_card():
