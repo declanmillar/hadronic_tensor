@@ -312,8 +312,24 @@ paired shots for J1 probes, rather than the sum of both settings' shots.
 
 Corollary for the manifest: a slice that carries J1 physics pubs must carry
 mirrors in all three readouts (the default), and `--j1-mirrors` additionally
-gives the j1p1 family its own mirror so the insertion-dependent part of the
-damping can be separated from the probe-dependent part.
+adds mirror pubs labelled `j1p1`. The current circuit builder uses the J0
+base for every mirror, including those labels: they are additional
+calibration replicas, not separate J1-insertion-base controls.
+
+### 4.4 Runtime mitigation settings
+
+`campaign._sampler` requests gate twirling for CZ circuits (disabled for the
+fractional RZZ basis), measurement twirling, and XY4 dynamical decoupling.
+The requested settings are saved in each job JSON. This Sampler submission
+does not configure TREX, an assignment-matrix readout correction, zero-noise
+extrapolation, or probabilistic error cancellation. Measurement twirling
+symmetrizes readout noise but does not, by itself, correct the resulting
+suppression of expectation values.
+
+The tensor reduction applies the mirror calibration described above after
+fetching the bitstrings. The qPDF reduction uses vacuum subtraction, without
+that tensor mirror correction. Gauss-law diagnostics are recorded by the
+ordinary readouts; postselection is not automatically applied by `analyze`.
 
 ## 5. Knobs IBM may tune, and invariants
 
