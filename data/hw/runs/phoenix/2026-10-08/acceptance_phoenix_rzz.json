@@ -1,0 +1,978 @@
+{
+ "kind": "acceptance",
+ "status": "WARN",
+ "written": "2026-10-08T11:27:50",
+ "env": {
+  "htq_hw": "0.1.0",
+  "python": "3.12.13",
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "modules": {
+   "qiskit": "2.5.0",
+   "qiskit_aer": "0.17.2",
+   "qiskit_ibm_runtime": "0.47.0",
+   "numpy": "2.4.6",
+   "scipy": "1.18.0"
+  },
+  "pinned": {
+   "qiskit": "2.5.0",
+   "qiskit_aer": "0.17.2",
+   "qiskit_ibm_runtime": "0.47.0",
+   "numpy": "2.4.6",
+   "scipy": "1.18.0"
+  },
+  "pinned_ok": true,
+  "pin_mismatches": []
+ },
+ "git": {
+  "commit": "109ac06b66bcdf25e01101b2a44a9836aab73d8e",
+  "tag": "109ac06",
+  "branch": "integrate/tier3-calibration",
+  "dirty": true,
+  "dirty_files": [
+   "M htq_hw/README.md",
+   " M htq_hw/__main__.py",
+   " M htq_hw/acceptance.py",
+   " M htq_hw/analyze.py",
+   " M htq_hw/campaign.py",
+   " M htq_hw/tests/test_acceptance.py",
+   " M htq_hw/tests/test_analyze.py",
+   " M htq_hw/tests/test_campaign.py",
+   " M htq_hw/tests/test_presets.py"
+  ]
+ },
+ "level": "full",
+ "target": {
+  "name": "ibm_phoenix",
+  "label": "ibm_phoenix",
+  "is_real": true,
+  "standin_for": null,
+  "twin_of": null,
+  "num_qubits": 120,
+  "n_edges": 218,
+  "basis_gates": [
+   "cz",
+   "delay",
+   "id",
+   "if_else",
+   "measure",
+   "measure_2",
+   "measure_reset",
+   "measure_reset_2",
+   "reset",
+   "rx",
+   "rz",
+   "rzz",
+   "sx",
+   "x",
+   "xslow"
+  ],
+  "last_update_date": "2026-10-07 17:51:58+01:00"
+ },
+ "presets": [
+  "relA-core",
+  "prod-bridge",
+  "vac-w00",
+  "qpdf-scan"
+ ],
+ "ns": 50,
+ "basis": "rzz",
+ "seconds": 59218.6,
+ "steps": [
+  {
+   "name": "env",
+   "status": "PASS",
+   "detail": "pinned"
+  },
+  {
+   "name": "git",
+   "status": "WARN",
+   "detail": "uncommitted changes under htq_hw: ['M htq_hw/README.md', ' M htq_hw/__main__.py', ' M htq_hw/acceptance.py']"
+  },
+  {
+   "name": "target",
+   "status": "PASS",
+   "detail": "ibm_phoenix (live)"
+  },
+  {
+   "name": "embedding",
+   "status": "PASS",
+   "detail": "ladder, redundancy 7, spare 19, 0 dead qubit(s) excluded",
+   "embedding": {
+    "kind": "ladder",
+    "redundancy": 7,
+    "spare_qubits": 19,
+    "layout": [
+     51,
+     53,
+     52,
+     43,
+     42,
+     40,
+     41,
+     30,
+     31,
+     20,
+     21,
+     1,
+     11,
+     2,
+     12,
+     32,
+     22,
+     33,
+     23,
+     3,
+     13,
+     4,
+     14,
+     34,
+     24,
+     35,
+     25,
+     5,
+     15,
+     6,
+     16,
+     7,
+     17,
+     8,
+     18,
+     29,
+     28,
+     26,
+     27,
+     36,
+     37,
+     39,
+     38,
+     49,
+     48,
+     46,
+     47,
+     56,
+     57,
+     59,
+     58,
+     69,
+     68,
+     77,
+     78,
+     89,
+     88,
+     99,
+     98,
+     109,
+     108,
+     117,
+     107,
+     87,
+     97,
+     86,
+     96,
+     116,
+     106,
+     115,
+     105,
+     85,
+     95,
+     84,
+     94,
+     114,
+     104,
+     113,
+     103,
+     83,
+     93,
+     82,
+     92,
+     112,
+     102,
+     100,
+     101,
+     90,
+     91,
+     80,
+     81,
+     70,
+     71,
+     73,
+     72,
+     63,
+     62,
+     60,
+     61,
+     50,
+     67
+    ]
+   },
+   "operational": {
+    "n_qubits": 120,
+    "dropped_qubits": [],
+    "dropped_edges": [],
+    "reasons": {},
+    "edges_before": 218,
+    "edges_after": 218,
+    "live_qubits": 120,
+    "properties": true
+   }
+  },
+  {
+   "name": "cards:prod_k1.26_s0.75_ns50",
+   "status": "PASS",
+   "detail": "2 family grid(s) cover every slice"
+  },
+  {
+   "name": "cards:prod_k1.26_s1.00_ns50",
+   "status": "PASS",
+   "detail": "preparation-only"
+  },
+  {
+   "name": "cards:prod_k1.26_s1.50_ns50",
+   "status": "PASS",
+   "detail": "preparation-only"
+  },
+  {
+   "name": "cards:prod_vac_ns50",
+   "status": "PASS",
+   "detail": "1 family grid(s) cover every slice"
+  },
+  {
+   "name": "cards:relA_k1.26_s0.75_ns50",
+   "status": "PASS",
+   "detail": "4 family grid(s); 4 rely on the wing surrogate (/Users/declanmillar/Projects/fermilab/hadronic-tensor/hadronic_tensor/htq_hw/refs/wing_surrogate_relA.npz) beyond t=3.0"
+  },
+  {
+   "name": "cards:relA_k1.26_s1.00_ns50",
+   "status": "PASS",
+   "detail": "preparation-only"
+  },
+  {
+   "name": "cards:relA_k1.26_s1.50_ns50",
+   "status": "PASS",
+   "detail": "preparation-only"
+  },
+  {
+   "name": "cards:relA_vac_ns50",
+   "status": "PASS",
+   "detail": "1 family grid(s); 1 rely on the wing surrogate (/Users/declanmillar/Projects/fermilab/hadronic-tensor/hadronic_tensor/htq_hw/refs/wing_surrogate_relA.npz) beyond t=2.0"
+  },
+  {
+   "name": "circuits",
+   "status": "PASS",
+   "detail": "821 pubs built, 2q 400-5609, skeletons asserted"
+  },
+  {
+   "name": "plan",
+   "status": "PASS",
+   "detail": "118 jobs, 3.8e+07 shots, 158.4 min at 250 us (budget 180)",
+   "jobs": 118,
+   "minutes": 158.375
+  },
+  {
+   "name": "check",
+   "status": "PASS",
+   "detail": "18 circuits, worst 1.25e-04 (tol 0.005)",
+   "worst": 0.00012546232594719264
+  },
+  {
+   "name": "rehearse",
+   "status": "PASS",
+   "detail": "20 slices from 248 pubs at t=[0.0, 0.5] (4000 shots), worst |kappa-1| 0.188",
+   "slices": 20,
+   "worst_kappa_dev": 0.18782682689492713,
+   "rehearsal": {
+    "relA_k1.26_s0.75_ns50": [
+     {
+      "slice": [
+       "00",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "00",
+       "0.5",
+       "0.25"
+      ],
+      "kappa_center": 0.9999999902861952,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "00",
+       "0.5"
+      ],
+      "kappa_center": 0.9999999902861952,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "10",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "10",
+       "0.5",
+       "0.25"
+      ],
+      "kappa_center": 0.976243356989065,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "10",
+       "0.5"
+      ],
+      "kappa_center": 1.0618694214853903,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "01",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "01",
+       "0.5",
+       "0.25"
+      ],
+      "kappa_center": 0.9999999902861952,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "01",
+       "0.5"
+      ],
+      "kappa_center": 0.9999999902861952,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "11",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "11",
+       "0.5",
+       "0.25"
+      ],
+      "kappa_center": 0.9640453559114655,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "11",
+       "0.5"
+      ],
+      "kappa_center": 1.0413996495049491,
+      "masked": 0
+     }
+    ],
+    "prod_k1.26_s0.75_ns50": [
+     {
+      "slice": [
+       "00",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "00",
+       "0.5"
+      ],
+      "kappa_center": 1.0000000042327737,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "10",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "10",
+       "0.5"
+      ],
+      "kappa_center": 0.8121731731050729,
+      "masked": 0
+     }
+    ],
+    "prod_vac_ns50": [
+     {
+      "slice": [
+       "00",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "00",
+       "0.5"
+      ],
+      "kappa_center": 0.9999999986319588,
+      "masked": 0
+     }
+    ],
+    "relA_vac_ns50": [
+     {
+      "slice": [
+       "00",
+       "0.0"
+      ],
+      "kappa_center": 1.0,
+      "masked": 0
+     },
+     {
+      "slice": [
+       "00",
+       "0.5"
+      ],
+      "kappa_center": 0.9999999913791394,
+      "masked": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "qpdf",
+   "status": "PASS",
+   "detail": "6 card(s) reduced at 4000 shots, worst |pull| 1.2 sigma vs the ideal <x>",
+   "qpdf": {
+    "prod_k1.26_s0.75_ns50": {
+     "x": 0.38370349206594373,
+     "x_err": 0.009642987992853338,
+     "norm": 0.27362230643843133,
+     "vacuum": "prod_vac_ns50",
+     "h0_measured": true,
+     "x_ideal": 0.3891276960507738,
+     "pull": -0.5625024099221198
+    },
+    "prod_k1.26_s1.00_ns50": {
+     "x": 0.37820651851460435,
+     "x_err": 0.012047470751580488,
+     "norm": 0.22003782020610563,
+     "vacuum": "prod_vac_ns50",
+     "h0_measured": true,
+     "x_ideal": 0.3728302357208655,
+     "pull": 0.4462582150725335
+    },
+    "prod_k1.26_s1.50_ns50": {
+     "x": 0.3497124582489457,
+     "x_err": 0.017592910958771954,
+     "norm": 0.15318454101907533,
+     "vacuum": "prod_vac_ns50",
+     "h0_measured": true,
+     "x_ideal": 0.3462650546923839,
+     "pull": 0.19595412974240692
+    },
+    "relA_k1.26_s0.75_ns50": {
+     "x": 0.362503337716103,
+     "x_err": 0.010278981144606082,
+     "norm": 0.25972414054234993,
+     "vacuum": "relA_vac_ns50",
+     "h0_measured": true,
+     "x_ideal": 0.349976748069789,
+     "pull": 1.2186606308629464
+    },
+    "relA_k1.26_s1.00_ns50": {
+     "x": 0.3325376067563605,
+     "x_err": 0.012858907281888429,
+     "norm": 0.21218615129914753,
+     "vacuum": "relA_vac_ns50",
+     "h0_measured": true,
+     "x_ideal": 0.32964217559941805,
+     "pull": 0.22516930042886557
+    },
+    "relA_k1.26_s1.50_ns50": {
+     "x": 0.31309426022095843,
+     "x_err": 0.01791802802801486,
+     "norm": 0.15486435190637735,
+     "vacuum": "relA_vac_ns50",
+     "h0_measured": true,
+     "x_ideal": 0.29886094952904957,
+     "pull": 0.7943569833496779
+    }
+   }
+  }
+ ],
+ "failures": [],
+ "warnings": [
+  "git: uncommitted changes under htq_hw: ['M htq_hw/README.md', ' M htq_hw/__main__.py', ' M htq_hw/acceptance.py']"
+ ],
+ "cards": {
+  "prod_k1.26_s0.75_ns50": {
+   "families_needed": [
+    "j0",
+    "j0d"
+   ],
+   "times_needed": [
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0,
+    6.5,
+    7.0,
+    7.5,
+    8.0
+   ],
+   "plain_reference_needed": true,
+   "grids": {
+    "j0": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ],
+     "missing_rows": [],
+     "id_a": 0.5,
+     "c_a": -0.5,
+     "plain_reference": "one_pt_J0"
+    },
+    "j0d": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ],
+     "missing_rows": [],
+     "id_a": -0.5,
+     "c_a": -0.5
+    }
+   }
+  },
+  "prod_k1.26_s1.00_ns50": {
+   "families_needed": [],
+   "times_needed": [
+    0.0
+   ],
+   "plain_reference_needed": false,
+   "grids": {},
+   "note": "preparation-only card (no evolved pubs)"
+  },
+  "prod_k1.26_s1.50_ns50": {
+   "families_needed": [],
+   "times_needed": [
+    0.0
+   ],
+   "plain_reference_needed": false,
+   "grids": {},
+   "note": "preparation-only card (no evolved pubs)"
+  },
+  "prod_vac_ns50": {
+   "families_needed": [
+    "j0"
+   ],
+   "times_needed": [
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0
+   ],
+   "plain_reference_needed": true,
+   "grids": {
+    "j0": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0
+     ],
+     "missing_rows": [],
+     "id_a": 0.5,
+     "c_a": -0.5,
+     "plain_reference": "one_pt_J0"
+    }
+   }
+  },
+  "relA_k1.26_s0.75_ns50": {
+   "families_needed": [
+    "j0",
+    "j0d",
+    "j1p1",
+    "j1p2"
+   ],
+   "times_needed": [
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0,
+    6.5,
+    7.0,
+    7.5,
+    8.0
+   ],
+   "plain_reference_needed": true,
+   "grids": {
+    "j0": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0
+     ],
+     "missing_rows": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ],
+     "id_a": 0.5,
+     "c_a": -0.5,
+     "plain_reference": "one_pt_J0",
+     "surrogate_covers": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ]
+    },
+    "j0d": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0
+     ],
+     "missing_rows": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ],
+     "id_a": -0.5,
+     "c_a": -0.5,
+     "surrogate_covers": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ]
+    },
+    "j1p1": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0
+     ],
+     "missing_rows": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ],
+     "id_a": 0.0,
+     "c_a": 0.575,
+     "surrogate_covers": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ]
+    },
+    "j1p2": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0
+     ],
+     "missing_rows": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ],
+     "id_a": 0.0,
+     "c_a": -0.575,
+     "surrogate_covers": [
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0,
+      6.5,
+      7.0,
+      7.5,
+      8.0
+     ]
+    }
+   }
+  },
+  "relA_k1.26_s1.00_ns50": {
+   "families_needed": [],
+   "times_needed": [
+    0.0
+   ],
+   "plain_reference_needed": false,
+   "grids": {},
+   "note": "preparation-only card (no evolved pubs)"
+  },
+  "relA_k1.26_s1.50_ns50": {
+   "families_needed": [],
+   "times_needed": [
+    0.0
+   ],
+   "plain_reference_needed": false,
+   "grids": {},
+   "note": "preparation-only card (no evolved pubs)"
+  },
+  "relA_vac_ns50": {
+   "families_needed": [
+    "j0"
+   ],
+   "times_needed": [
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0
+   ],
+   "plain_reference_needed": true,
+   "grids": {
+    "j0": {
+     "times": [
+      0.0,
+      0.5,
+      1.0,
+      2.0
+     ],
+     "missing_rows": [
+      1.5,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0
+     ],
+     "id_a": 0.5,
+     "c_a": -0.5,
+     "plain_reference": "one_pt_J0",
+     "surrogate_covers": [
+      1.5,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0
+     ]
+    }
+   }
+  }
+ },
+ "files": {
+  "README.md": "2e507cbd16af9a1cf3dc073e6c73ea1aa4afacd555165eec56253bdc8bf6551c",
+  "__init__.py": "3b9db93ca3811b07658b795190a4c0d2b03fc3779cae4fa3a11a256728241952",
+  "__main__.py": "9b8752c54ec8fee60af44c91223a2969b0360ed029d655cd8a4eed31e060bbdd",
+  "acceptance.py": "147bff33db8ab29ae76470cb94706270ea8634b241711632ecb38794291545b1",
+  "analyze.py": "26768368f12ec31d234e168b606f8d35e2ea229c7b50f4dd4040516b5456e52f",
+  "campaign.py": "00470666188e27f207d4731b7409587d117f50fddfb4d0d4bf8bcf6a5ab41621",
+  "cards/prod_k1.26_s0.75_ns50/card.json": "b98d612ba9232ac53cdd6285676dcf3b6ed2b9f978e5c4d4a77452979904732a",
+  "cards/prod_k1.26_s0.75_ns50/grids_provenance.json": "c7b40ffce22a8ae3d50775a9b7ddf79dc2b06f0dd8fe35023c2065d15dcd24b1",
+  "cards/prod_k1.26_s0.75_ns50/ideal_j0.npz": "22d86d332e164afa18e9e540252579f23f6359dbd61b91fcaa5027c250222c8a",
+  "cards/prod_k1.26_s0.75_ns50/ideal_j0d.npz": "6e81b6cf9fea27d78e57e67e1a7958bc832a6b7525d26fd2cd638ec8f0887431",
+  "cards/prod_k1.26_s0.75_ns50/ideal_j1p1.npz": "449d922edf1bceeea2e8862444fafbc5b26c8dc4ca624a9525feb9b8e4346a72",
+  "cards/prod_k1.26_s0.75_ns50/ideal_j1p2.npz": "f2b5a6aaf2ab1a63ecd54326bda7ef39e804394416eb383d03f6269fc0a48673",
+  "cards/prod_k1.26_s0.75_ns58/card.json": "fdddcb8d4ff631d2c0f88074209f579e0ebf6fd3e7121f983230a99a31c977e4",
+  "cards/prod_k1.26_s1.00_ns50/card.json": "4023273b4369eb81049a19b5cbbc1b4f5fdfefc58101632c588f2e86bd33a9d9",
+  "cards/prod_k1.26_s1.50_ns50/card.json": "3e1d8975484b1644eb2ae97b7b53c211c55b8284631159474b7083f3bf7c6605",
+  "cards/prod_vac_ns50/card.json": "c46957fc573e087d9dadf1bdeb59d44a89223991519b7a4b504564938f39fd3d",
+  "cards/prod_vac_ns50/grids_provenance.json": "b6386d3af134a1ff82992272fe910e03dfc4863cbd0f7766087f6fb826cd2b36",
+  "cards/prod_vac_ns50/ideal_j0.npz": "2bbe14291120ddf64f4dff11dffc46136e94aebc38d6f82049e98fcb504ae8af",
+  "cards/relA_k0.00_s0.75_ns50/card.json": "f449daeab2ceabf816513246f45a4a85b5d23e21440b50b3f7492a372e4786f0",
+  "cards/relA_k1.26_s0.75_ns50/card.json": "0e878b3292f0cf347190f77b51f80811c1d2b7253ae3368e2ed5d6f9dae62b52",
+  "cards/relA_k1.26_s0.75_ns50/grids_provenance.json": "d168964a897c643f751cf1aacae3fa52b67bb7ef2ad4f252f4ed9266ac7a3362",
+  "cards/relA_k1.26_s0.75_ns50/ideal_j0.npz": "744d96c3f80deaa30572bbe94db31e394c9e0982d4c11bf248f5b265ceeb33c3",
+  "cards/relA_k1.26_s0.75_ns50/ideal_j0d.npz": "2a37cc075583fc035ba49ed2fdd39a9baeb848c1ea58b363dcaaf0bc68ed3fe2",
+  "cards/relA_k1.26_s0.75_ns50/ideal_j1p1.npz": "5bdc7bda5a0a1be03f4aa4f76416e536cf05a9b458801408244df0179f8e520e",
+  "cards/relA_k1.26_s0.75_ns50/ideal_j1p2.npz": "ca9c2f0ed91d430d9a215ae2235b7f9a7b30ab6bc98b5b69c46ab2d4b8754397",
+  "cards/relA_k1.26_s0.75_ns58/card.json": "bdd55814f69f55a140e2e92c1c520c5dcce1f2c30b5848e9e0e4e5d1cd5984a8",
+  "cards/relA_k1.26_s1.00_ns50/card.json": "3c6925ddfc6b09d8a7bd20f6154e02a76db781a3540cae0716770f055f3799d8",
+  "cards/relA_k1.26_s1.50_ns50/card.json": "bc4896761c2ab889ad4c358f07af7ffa9be5d50af1bda9f8c223c2e17129566a",
+  "cards/relA_vac_ns50/card.json": "ba02750be366a508a53da7edc314267d29fe7b9214ed08327669c4e70764f98d",
+  "cards/relA_vac_ns50/grids_provenance.json": "9c2c5c8e32741489dd7b2c06199bda78725f36ff13d37da6f7182523a43f1c89",
+  "cards/relA_vac_ns50/ideal_j0.npz": "c941d55cb89d05d77e82020d7241a2e61756534a8805e55d6b817a318f7f1d2f",
+  "circuits.py": "73abde888ee3671099fbc62b08754ee7c56b9bc4ea97a0284a7f9115f745ae96",
+  "gauss.py": "7ef29b2eaaa3b1b922d1fe62dc139c60c2affb89778bac76647b1f2ccc3ee925",
+  "model.py": "c8802c025871ff603e4f71fc3b84f484a4e58360580f45b431e00bcbe967f58e",
+  "record.py": "a72c64b1437232d0cb80fe432405757931d213a396948e5023177a9a5a02f767",
+  "refs/README.md": "07d69ce00897c9c56a068c595da715bd7a9c06c80a110b51adc031971df54031",
+  "refs/qpdf_card_refs.npz": "cab315c1662e481e99b86feebbdc6a9b05d2c1e846c6be0979b46732b052dfa9",
+  "refs/wing_surrogate_prod.npz": "079af83ed1147ad46560e1bbe948a37b17ec1fb8fc273191887063ab411b8a86",
+  "refs/wing_surrogate_relA.npz": "83b570ef6ab69b77f594ea4801400cdb8bf0521223dd137a201bf56ec1c6e9ff",
+  "requirements.txt": "20685a3e7c08fece5b36f5e9855eb5c91d0d1db26ab73895915c1f404bce6b9f",
+  "sim.py": "65c624a8313ab01bf28c693d102eebade835032c9b6d2c30614ab82c1d78a904",
+  "target.py": "531841388173af8be06ba26b5781fead04df1f308f53ee2de24f8850ec815e21",
+  "tests/conftest.py": "113960c1012e0aa6e66932ac5b8983ad50b3299c908135d1eaed9e04fcab64c6",
+  "tests/test_acceptance.py": "d940e835bcbec58467b5aa64b55f748b166481de004efac799b332cd75b134ce",
+  "tests/test_analyze.py": "13bd63c0f00f76204bdd98c96bf43c5ceeb85aa7a2237c7b9e86639ad1c800d6",
+  "tests/test_campaign.py": "54ae5c511a8493dde563dc3f95800ebe60036ab2c61b4ea84d6d2ff83b425655",
+  "tests/test_circuits.py": "48cb95f372a6262946b0f4df5c2219e63470a4e96e1a893c7cb0467b0780f500",
+  "tests/test_gauss.py": "1a9b9847cf515a8e9bf87a9a59c94c63cb7c0d01126e8d4f56bb186e767e18a0",
+  "tests/test_model.py": "71d65447913a687b1853704ed4dc95b4189eb3fda2876b68a8e02baa7f2fc8f0",
+  "tests/test_presets.py": "14fcf06d22adc158ecf554b9aa4bc0213172a0b316358956844c495535327c93",
+  "tests/test_sim.py": "6fb5471d3eeddbd46eca874c4b1bbb22e2652d2ea2341385a516feac7493e0c5",
+  "tests/test_target.py": "23442e7b21b5c9529f158a720ae81381b6ebe5beadb4800ae6df95328ece7691"
+ },
+ "embedding": {
+  "kind": "ladder",
+  "redundancy": 7,
+  "spare_qubits": 19
+ },
+ "rehearsal_dir": "data/work/phoenix-rzz-rehearsal"
+}

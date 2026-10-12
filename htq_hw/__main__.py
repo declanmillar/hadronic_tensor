@@ -382,6 +382,17 @@ def cmd_analyze(args):
 def cmd_acceptance(args):
     from . import acceptance as AC
     from . import record as R
+    from datetime import datetime, timezone
+    from pathlib import Path
+    import re
+
+    record_path = args.record
+    if record_path is None:
+        now = datetime.now(timezone.utc)
+        backend = re.sub(r"[^A-Za-z0-9_.-]+", "-", args.target)
+        backend = backend.removeprefix("ibm_").strip(".-") or "hardware"
+        record_path = (Path("data/hw/runs") / backend / now.strftime("%Y-%m-%d")
+                       / f"acceptance_{now.strftime('%H-%M-%S_%fZ')}.json")
     rec = AC.run(args.target, args.preset or ["relA-core", "prod-bridge", "vac-w00", "qpdf-scan"],
                  ns=args.ns, basis=args.basis, level=args.level, mode=args.mode,
                  require_real=args.require_real, cache_dir=args.cache, threads=args.threads,
@@ -389,7 +400,7 @@ def cmd_acceptance(args):
                  wing_surrogate=args.wing_surrogate, rehearse_shots=args.accept_shots,
                  kappa_tol=args.kappa_tol, refs=args.refs,
                  keep_rehearsal=args.keep_rehearsal, log=log)
-    path = R.write_record(args.record, "acceptance", rec, rec["status"])
+    path = R.write_record(record_path, "acceptance", rec, rec["status"])
     print()
     print(R.summarize({"kind": "acceptance", **rec, "env": R.env_stamp(), "git": R.git_stamp()}))
     print(f"\nrecord: {path}")
@@ -624,7 +635,8 @@ def main(argv=None):
     ac.add_argument("--level", choices=["fast", "full"], default="fast")
     ac.add_argument("--require-real", action="store_true",
                     help="fail unless the target is the live device (use before a real run)")
-    ac.add_argument("--record", default="data/hw/acceptance.json")
+    ac.add_argument("--record", default=None,
+                    help="report path (default: data/hw/runs/<backend>/<UTC-date>/acceptance_<UTC-time>.json)")
     ac.add_argument("--times", type=float, nargs="+", default=None)
     ac.add_argument("--tol", type=float, default=5e-3)
     ac.add_argument("--budget", type=float, default=180.0)

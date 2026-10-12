@@ -1,0 +1,357 @@
+{
+  "created_at": "2026-10-06T22:59:04.202094+00:00",
+  "backend": "ibm_phoenix",
+  "source_jobs": 118,
+  "source_pubs": 821,
+  "source_shots": 38010000,
+  "source_audit": "data/work/phoenix-fetch/audit-20261006T224308Z.json",
+  "tensor_slices": 206,
+  "split_readout_slices_recovered": 70,
+  "masked_nonfinite_points": 5,
+  "validation": "passed_on_retained_sites",
+  "tensor_metrics": [
+    {
+      "coupling": "prod",
+      "component": "00",
+      "tmax": 6.0,
+      "peak_abs_hardware": 0.8828042149907875,
+      "peak_abs_reference": 1.000348575859263,
+      "diagonal_propagated_error_bound": 1.5007457601359884,
+      "shape_correlation_descriptive_only": 0.8509506085850752
+    },
+    {
+      "coupling": "prod",
+      "component": "10",
+      "tmax": 6.0,
+      "peak_abs_hardware": 0.3585306180517359,
+      "peak_abs_reference": 0.30799499380841167,
+      "diagonal_propagated_error_bound": 0.09109558643908908,
+      "shape_correlation_descriptive_only": 0.7236211315612556
+    },
+    {
+      "coupling": "relA",
+      "component": "00",
+      "tmax": 6.0,
+      "peak_abs_hardware": 0.5467001257869184,
+      "peak_abs_reference": 0.3871225164082931,
+      "diagonal_propagated_error_bound": 0.9135514202898186,
+      "shape_correlation_descriptive_only": 0.6727757306130787
+    },
+    {
+      "coupling": "relA",
+      "component": "01",
+      "tmax": 6.0,
+      "peak_abs_hardware": 0.6432776857258441,
+      "peak_abs_reference": 0.6165491064504306,
+      "diagonal_propagated_error_bound": 1.1663654840958897,
+      "shape_correlation_descriptive_only": 0.6468776182300656
+    },
+    {
+      "coupling": "relA",
+      "component": "10",
+      "tmax": 6.0,
+      "peak_abs_hardware": 0.6201334506687922,
+      "peak_abs_reference": 0.6710334384062818,
+      "diagonal_propagated_error_bound": 0.12211287335482904,
+      "shape_correlation_descriptive_only": 0.7353852399278858
+    },
+    {
+      "coupling": "relA",
+      "component": "11",
+      "tmax": 6.0,
+      "peak_abs_hardware": 1.6829985340870408,
+      "peak_abs_reference": 1.7995351235465151,
+      "diagonal_propagated_error_bound": 0.5120257546366139,
+      "shape_correlation_descriptive_only": 0.7363103224261258
+    }
+  ],
+  "qpdf_moments": [
+    {
+      "card": "prod_k1.26_s0.75_ns50",
+      "vacuum_card": "prod_vac_ns50",
+      "group": "prod",
+      "sigma_x": 0.75,
+      "k0": 1.2566370614359172,
+      "center": 24,
+      "physics_pubs": 21,
+      "vacuum_pubs": 21,
+      "shots_per_pub": [
+        20000
+      ],
+      "h0": 0.40779999999999994,
+      "h0_err": 0.0041719495442778315,
+      "h0_ideal": 0.4359399044233506,
+      "norm": 0.22190719796258324,
+      "norm_err": 0.0022953237356608002,
+      "norm_snr": 96.6779520095445,
+      "norm_ideal": 0.276250680742808,
+      "norm_ratio_to_ideal": 0.8032819950557187,
+      "x": 0.40087092155298776,
+      "x_err_cli": 0.005316866940065423,
+      "x_err_covariance_delta": 0.0050672072120214046,
+      "x_ci68": [
+        0.3957917892033912,
+        0.4058425312487057
+      ],
+      "x_ci95": [
+        0.39089975809931826,
+        0.41070880267253174
+      ],
+      "x_ideal": 0.3891276960507738,
+      "x_difference": 0.011743225502213961,
+      "pull_shot_only": 2.3174946298533876,
+      "norm_sign_flip_fraction": 0.0,
+      "flags": [
+        "normalization_differs_from_MPS_by_more_than_10_percent"
+      ],
+      "reduction_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/qpdf_prod_k1.26_s0.75_ns50.npz",
+      "diagnostic_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/diagnostic_prod_k1.26_s0.75_ns50.npz"
+    },
+    {
+      "card": "prod_k1.26_s1.00_ns50",
+      "vacuum_card": "prod_vac_ns50",
+      "group": "prod",
+      "sigma_x": 1.0,
+      "k0": 1.2566370614359172,
+      "center": 24,
+      "physics_pubs": 21,
+      "vacuum_pubs": 21,
+      "shots_per_pub": [
+        20000
+      ],
+      "h0": 0.34225,
+      "h0_err": 0.004160719934698802,
+      "h0_ideal": 0.3508586318028954,
+      "norm": 0.1761119336736733,
+      "norm_err": 0.0022950979210827776,
+      "norm_snr": 76.73395198344632,
+      "norm_ideal": 0.22685974735154987,
+      "norm_ratio_to_ideal": 0.7763031376419725,
+      "x": 0.3792912996971714,
+      "x_err_cli": 0.006765177379203865,
+      "x_err_covariance_delta": 0.006436570542060172,
+      "x_ci68": [
+        0.37282604100560324,
+        0.3855975519088186
+      ],
+      "x_ci95": [
+        0.36658474441476774,
+        0.3917849255107253
+      ],
+      "x_ideal": 0.3728302357208655,
+      "x_difference": 0.006461063976305914,
+      "pull_shot_only": 1.0038053547437549,
+      "norm_sign_flip_fraction": 0.0,
+      "flags": [
+        "normalization_differs_from_MPS_by_more_than_10_percent"
+      ],
+      "reduction_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/qpdf_prod_k1.26_s1.00_ns50.npz",
+      "diagnostic_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/diagnostic_prod_k1.26_s1.00_ns50.npz"
+    },
+    {
+      "card": "prod_k1.26_s1.50_ns50",
+      "vacuum_card": "prod_vac_ns50",
+      "group": "prod",
+      "sigma_x": 1.5,
+      "k0": 1.2566370614359172,
+      "center": 24,
+      "physics_pubs": 21,
+      "vacuum_pubs": 21,
+      "shots_per_pub": [
+        20000
+      ],
+      "h0": 0.2565,
+      "h0_err": 0.00406699932382586,
+      "h0_ideal": 0.23627965657628458,
+      "norm": 0.13238256929731446,
+      "norm_err": 0.002272704956013404,
+      "norm_snr": 58.248902457417664,
+      "norm_ideal": 0.15576170890191635,
+      "norm_ratio_to_ideal": 0.8499044484718397,
+      "x": 0.3941916495775486,
+      "x_err_cli": 0.008950247090964432,
+      "x_err_covariance_delta": 0.008505748722158441,
+      "x_ci68": [
+        0.3856444786236759,
+        0.4025259577083773
+      ],
+      "x_ci95": [
+        0.37739762986757164,
+        0.4106640188323236
+      ],
+      "x_ideal": 0.3462650546923839,
+      "x_difference": 0.04792659488516471,
+      "pull_shot_only": 5.63461212536299,
+      "norm_sign_flip_fraction": 0.0,
+      "flags": [
+        "first_moment_differs_from_MPS_by_more_than_3_shot_standard_errors",
+        "normalization_differs_from_MPS_by_more_than_10_percent"
+      ],
+      "reduction_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/qpdf_prod_k1.26_s1.50_ns50.npz",
+      "diagnostic_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/diagnostic_prod_k1.26_s1.50_ns50.npz"
+    },
+    {
+      "card": "relA_k1.26_s0.75_ns50",
+      "vacuum_card": "relA_vac_ns50",
+      "group": "relA",
+      "sigma_x": 0.75,
+      "k0": 1.2566370614359172,
+      "center": 24,
+      "physics_pubs": 21,
+      "vacuum_pubs": 21,
+      "shots_per_pub": [
+        20000
+      ],
+      "h0": 0.32099999999999995,
+      "h0_err": 0.004584212691400782,
+      "h0_ideal": 0.38623293755581595,
+      "norm": 0.19394266365431578,
+      "norm_err": 0.002414998487688067,
+      "norm_snr": 80.30757147180722,
+      "norm_ideal": 0.263435820774504,
+      "norm_ratio_to_ideal": 0.7362046022599447,
+      "x": 0.398313337109549,
+      "x_err_cli": 0.00610151235208195,
+      "x_err_covariance_delta": 0.00580666328155977,
+      "x_ci68": [
+        0.3924863837119543,
+        0.40400699150535424
+      ],
+      "x_ci95": [
+        0.3868694861837721,
+        0.4095739714988307
+      ],
+      "x_ideal": 0.349976748069789,
+      "x_difference": 0.048336589039760014,
+      "pull_shot_only": 8.324331323509423,
+      "norm_sign_flip_fraction": 0.0,
+      "flags": [
+        "first_moment_differs_from_MPS_by_more_than_3_shot_standard_errors",
+        "normalization_differs_from_MPS_by_more_than_10_percent"
+      ],
+      "reduction_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/qpdf_relA_k1.26_s0.75_ns50.npz",
+      "diagnostic_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/diagnostic_relA_k1.26_s0.75_ns50.npz"
+    },
+    {
+      "card": "relA_k1.26_s1.00_ns50",
+      "vacuum_card": "relA_vac_ns50",
+      "group": "relA",
+      "sigma_x": 1.0,
+      "k0": 1.2566370614359172,
+      "center": 24,
+      "physics_pubs": 21,
+      "vacuum_pubs": 21,
+      "shots_per_pub": [
+        20000
+      ],
+      "h0": 0.30774999999999997,
+      "h0_err": 0.004589293287097698,
+      "h0_ideal": 0.3087664682779017,
+      "norm": 0.17181449062925092,
+      "norm_err": 0.0024228046361252113,
+      "norm_snr": 70.91553650980033,
+      "norm_ideal": 0.21619120608474324,
+      "norm_ratio_to_ideal": 0.7947339475126597,
+      "x": 0.40007335173452446,
+      "x_err_cli": 0.006889669077353658,
+      "x_err_covariance_delta": 0.0065633323356590455,
+      "x_ci68": [
+        0.39348788753453795,
+        0.406507843033159
+      ],
+      "x_ci95": [
+        0.3871345955171374,
+        0.4127873461451999
+      ],
+      "x_ideal": 0.32964217559941805,
+      "x_difference": 0.07043117613510641,
+      "pull_shot_only": 10.73100866041003,
+      "norm_sign_flip_fraction": 0.0,
+      "flags": [
+        "first_moment_differs_from_MPS_by_more_than_3_shot_standard_errors",
+        "normalization_differs_from_MPS_by_more_than_10_percent"
+      ],
+      "reduction_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/qpdf_relA_k1.26_s1.00_ns50.npz",
+      "diagnostic_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/diagnostic_relA_k1.26_s1.00_ns50.npz"
+    },
+    {
+      "card": "relA_k1.26_s1.50_ns50",
+      "vacuum_card": "relA_vac_ns50",
+      "group": "relA",
+      "sigma_x": 1.5,
+      "k0": 1.2566370614359172,
+      "center": 24,
+      "physics_pubs": 21,
+      "vacuum_pubs": 21,
+      "shots_per_pub": [
+        20000
+      ],
+      "h0": 0.23249999999999998,
+      "h0_err": 0.004581847171174525,
+      "h0_ideal": 0.21535597216771318,
+      "norm": 0.12345677970786881,
+      "norm_err": 0.0024237659789719803,
+      "norm_snr": 50.935932255403614,
+      "norm_ideal": 0.1523945386952943,
+      "norm_ratio_to_ideal": 0.8101128870156878,
+      "x": 0.40077825884187446,
+      "x_err_cli": 0.009602807173688577,
+      "x_err_covariance_delta": 0.00915122025089711,
+      "x_ci68": [
+        0.39158439843607357,
+        0.4097418013373347
+      ],
+      "x_ci95": [
+        0.38267243037127907,
+        0.41848173440713915
+      ],
+      "x_ideal": 0.29886094952904957,
+      "x_difference": 0.10191730931282489,
+      "pull_shot_only": 11.137018508852277,
+      "norm_sign_flip_fraction": 0.0,
+      "flags": [
+        "first_moment_differs_from_MPS_by_more_than_3_shot_standard_errors",
+        "normalization_differs_from_MPS_by_more_than_10_percent"
+      ],
+      "reduction_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/qpdf_relA_k1.26_s1.50_ns50.npz",
+      "diagnostic_file": "data/hw/runs/phoenix/2026-10-06/analysis/qpdf/diagnostic_relA_k1.26_s1.50_ns50.npz"
+    }
+  ],
+  "limitations": [
+    "Tensor transform uses Re correlators, MPS vacuum subtraction, and the existing error-weighted charge sum-rule projection for 00/01; measured vacuum controls are reduced separately.",
+    "Hardware evolution dt=.5 versus fine-MPS dt=.1: matched times/windows/masks do not remove Trotter error. Half-step controls are kept separate.",
+    "Tensor propagated-error bounds use saved per-site C_err and diagonal site-error propagation; full spatial/shared-mirror covariance, hardware systematic and reference uncertainties are not included.",
+    "Five nonfinite calibrated site/slice points from zero mirror ratios are already masked; all retained points are finite. Plot transforms use finite-safe masks.",
+    "J1 mirror calibration has only three strong-reference bonds per term; the remaining bonds use guarded median filling. Kappa at the center is not an independent measured fidelity.",
+    "Small beta denominators can strongly amplify uncertainties while passing the kappa-only mask. No additional beta cuts or fitted correction were applied.",
+    "At relA t=7.5 only one site survives the 10/10d mask; primary transforms use the original main window t<=6, while all t<=8 slices remain available.",
+    "qPDF moment errors include same-circuit +/-m shot covariance, but not hardware systematic or MPS uncertainty. Widths share their coupling-point vacuum data."
+  ],
+  "coverage_audit": "data/work/phoenix-analysis/reduction-audit.json",
+  "commands": "data/hw/runs/phoenix/2026-10-06/analysis/tensor-commands.json",
+  "source_code_sha256": {
+    "htq_hw/analyze.py": "26768368f12ec31d234e168b606f8d35e2ea229c7b50f4dd4040516b5456e52f",
+    "scripts/hw_w_tensor.py": "b3279c0512413dd468c1142dbc2430576f2ca93d69386d8a81d0a708cbe7f0ff"
+  },
+  "report_link_validation": "passed",
+  "supplemental_diagnostics": "data/work/phoenix-analysis/supplemental-diagnostics.json",
+  "relA_half_step_nominal_pull_rms": {
+    "00": [
+      2.07,
+      1.095
+    ],
+    "10": [
+      2.942,
+      1.721
+    ],
+    "01": [
+      1.187,
+      1.176
+    ],
+    "11": [
+      0.735,
+      0.825
+    ]
+  },
+  "half_step_interpretation": "Differences combine Trotter and hardware/calibration effects; no Trotter correction inferred and full covariance omitted."
+}
