@@ -7,9 +7,9 @@ gauge-post-selection cloud panel folded in.  Emits three PNGs/PDFs:
 
   PYTHONPATH=. .venv/bin/python scripts/hw_t3_pubfigs.py
 
-Outputs default to data/hw/runs/kingston/<UTC analysis timestamp>/.
-Use --tensor to select a regenerated coarse tensor and --out-dir to choose
-an output directory. The default tensor is the archived Kingston result.
+Use --run-dir for analysis/<UTC timestamp>/ within a hardware campaign,
+or --out for an explicit directory. Use --tensor to select a regenerated
+coarse tensor. The default tensor is the archived Kingston result.
 """
 
 import argparse
@@ -22,14 +22,14 @@ from paper_style import *  # usetex + OI palette + dev()
 import numpy as np
 
 from htensor import Z2Lattice
-from run_outputs import check_output_prefix, output_directory
+from run_outputs import check_output_prefix, output_directory, analysis_directory, add_analysis_arguments
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--tensor", default="data/hw_w00_coarse_t3.npz",
                help="coarse Kingston tensor NPZ (default: archived result)")
-p.add_argument("--out-dir", help="output directory (default: a dated Kingston run)")
+add_analysis_arguments(p, output_help="explicit output directory")
 args = p.parse_args()
-out_dir = output_directory("kingston", args.out_dir)
+out_dir = output_directory("kingston", args.out) if args.out else analysis_directory(args.run_dir)
 for name in ("hw_t3_combined", "hw_t3_figA", "hw_t3_figB", "hw_cloud"):
     check_output_prefix(out_dir / name)
 

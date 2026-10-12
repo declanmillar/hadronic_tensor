@@ -121,3 +121,30 @@ available for comparison.
 Whatever you send, include the device, the date, the shot count, and whether
 any mitigation was applied by the runtime (twirling, DD, readout mitigation).
 `docs/METHODS.md` documents what the analysis assumes about the raw sample.
+# Dated analysis outputs
+
+Use an existing campaign directory with `--run-dir` when reducing hardware
+data or running `hw_w_tensor.py`, `hw_w00_coarse.py`, or `hw_t3_pubfigs.py`.
+Each invocation creates a fresh `analysis/YYYY-MM-DD_HH-MM-SS_microsecondsZ/`
+directory inside that campaign. The outer date identifies the hardware
+campaign; the inner timestamp records the analysis start in UTC.
+
+For example, from the repository root:
+
+```sh
+PYTHONPATH=. python -m htq_hw --ns 50 analyze \
+  data/hw/runs/phoenix/2026-10-06/raw/htq_bits_*.npz \
+  --qpdf --run-dir data/hw/runs/phoenix/2026-10-06
+```
+
+Select tensor cards with the existing `--card` and `--by-card` options.
+The tensor plotter's `--slices` selects the input reduction explicitly;
+`--tensor` similarly selects the coarse tensor for `hw_t3_pubfigs.py`.
+No command automatically picks the latest reduction.
+
+`--out` remains an alternative for an explicit destination. For reduction
+it is a template (`slice_{comp}_t{t:.1f}.npz` or `qpdf_{card}.npz`); for
+`hw_w_tensor.py` it is a filename prefix, and for the two Kingston plotters
+it is a directory. It cannot be combined with `--run-dir`. This replaces
+the reducer's output `--slices` and the Kingston plotters' `--out-dir`.
+Existing outputs are protected from replacement.

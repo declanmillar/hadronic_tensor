@@ -26,11 +26,11 @@ and shared-mirror covariance is unavailable and is not included.
 The reference uses its saved fine evolution step; no Trotter correction is
 applied. Vacuum subtraction remains hybrid (MPS), not the measured vacuum.
 
-Outputs default to data/hw/runs/<label>/<UTC analysis timestamp>/.
+--run-dir selects a hardware campaign; outputs go in analysis/<UTC timestamp>/.
 An explicit --out selects a prefix; existing outputs are never overwritten.
 
   PYTHONPATH=. .venv/bin/python scripts/hw_w_tensor.py --j0 data/w_meson_ns50_k1.26_v3.npz \
-      --j1 data/w_meson_j1_ns50_k1.26.npz --slices "data/hw/slice_{comp}_t{t:.1f}.npz" --tmax 6
+      --j1 data/w_meson_j1_ns50_k1.26.npz --slices "data/hw/slice_{comp}_t{t:.1f}.npz" --tmax 6 --run-dir data/hw/runs/phoenix/2026-10-06
 """
 
 import argparse
@@ -49,7 +49,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_style import OI, OI_DIV, dev  # noqa: E402
 from htensor import analysis, asymmetry, tensor  # noqa: E402
-from run_outputs import check_output_prefix, output_directory  # noqa: E402
+from run_outputs import check_output_prefix, analysis_directory, add_analysis_arguments  # noqa: E402
 
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 p.add_argument("--j0", required=True, help="MPS production npz, J0 insertion")
@@ -59,7 +59,7 @@ p.add_argument("--times", type=float, nargs="+", default=None, help="slice times
 p.add_argument("--tmax", type=float, default=6.0)
 p.add_argument("--kap-min", type=float, default=0.05)
 p.add_argument("--sig-xf", type=float, default=2.0, help="sigma_x = nx / sig_xf (hardware default 2)")
-p.add_argument("--out", default=None, help="new output prefix (default: a dated run under data/hw/runs)")
+add_analysis_arguments(p, output_help="explicit output prefix")
 p.add_argument("--label", default="hardware")
 p.add_argument("--parity", action="store_true", help="also plot even/odd parts under q1 reflection and their cuts")
 p.add_argument("--q0-range", nargs=2, type=float, default=(-1.0, 5.0), metavar=("MIN", "MAX"),
@@ -74,7 +74,7 @@ if not np.isfinite(args.kap_min):
 if not (np.isfinite(args.q0_range).all() and args.q0_range[0] < args.q0_range[1]):
     p.error("--q0-range requires finite MIN < MAX")
 out = check_output_prefix(args.out if args.out else
-                          output_directory(args.label) / f"hw_w_tensor_t{args.tmax:.0f}")
+                          analysis_directory(args.run_dir) / f"hw_w_tensor_t{args.tmax:.0f}")
 
 g = tensor.load_mps_components(args.j0, args.j1)
 lat, C, k0 = g.lat, g.center, g.k0

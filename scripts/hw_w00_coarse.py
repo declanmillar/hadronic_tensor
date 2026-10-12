@@ -13,8 +13,8 @@ apples-to-apples.  delta-q0 ~ pi/t_max is coarse and labeled as such.
 
   PYTHONPATH=. .venv/bin/python scripts/hw_w00_coarse.py [tmax] [ps_win] [sig_xf]
 
-Outputs default to data/hw/runs/kingston/<UTC analysis timestamp>/.
-Use --out-dir to select a directory; existing outputs are never overwritten.
+Use --run-dir for analysis/<UTC timestamp>/ within a hardware campaign,
+or --out for an explicit directory. Existing outputs are never overwritten.
 """
 
 import argparse
@@ -25,16 +25,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from htensor import Z2Lattice, analysis
-from run_outputs import check_output_prefix, output_directory
+from run_outputs import check_output_prefix, output_directory, analysis_directory, add_analysis_arguments
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("tmax", nargs="?", type=float, default=1.0)
 p.add_argument("ps_win", nargs="?", type=int, default=2)
 p.add_argument("sig_xf", nargs="?", type=float, default=2.0)
-p.add_argument("--out-dir", help="output directory (default: a dated Kingston run)")
+add_analysis_arguments(p, output_help="explicit output directory")
 args = p.parse_args()
 TMAX, PS_WIN = args.tmax, args.ps_win
-out = check_output_prefix(output_directory("kingston", args.out_dir)
+out = check_output_prefix((output_directory("kingston", args.out) if args.out else analysis_directory(args.run_dir))
                           / f"hw_w00_coarse_t{TMAX:.0f}")
 
 NS, VC = 50, 24

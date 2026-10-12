@@ -364,17 +364,30 @@ def _qpdf_ref_key(card: str) -> str:
 def cmd_analyze(args):
     from . import analyze as A
     from . import campaign as CP
-    if args.qpdf:
-        return cmd_qpdf(args)
+    from scripts.run_outputs import analysis_directory
     if args.list_prefixes:
         print("prefixes present:", A.available_prefixes(args.bits) or "(none: unprefixed pubs only)")
         return
+    if args.run_dir:
+        directory = analysis_directory(args.run_dir)
+        args.out = str(directory / ("qpdf_{card}.npz" if args.qpdf else "slice_{comp}_t{t:.1f}.npz"))
+        print(f"analysis: {directory}")
+    elif not args.out:
+        raise SystemExit("analyze requires --run-dir or --out")
+    # Explicit templates must not replace earlier reductions either.
+    import glob
+    import re
+    pattern = re.sub(r"\{[^}]+\}", "*", args.out)
+    if glob.glob(pattern):
+        raise FileExistsError(f"Output already exists for {args.out}; choose a new output")
+    if args.qpdf:
+        return cmd_qpdf(args)
     card = C.load_card(args.card)
     center = _center_for(card, args.ns)
     prefix = args.prefix
     if prefix is None and args.preset:
         prefix = CP.name_prefix(args.preset, args.card)
-    A.analyze(args.bits, _ideal_template(args), args.slices, args.ns, center, args.times, args.components,
+    A.analyze(args.bits, _ideal_template(args), args.out, args.ns, center, args.times, args.components,
               card["couplings"]["eta"], args.backend, log=log, prefix=prefix, card=args.card,
               select_by_card=args.by_card, wing_surrogate=args.wing_surrogate)
 
@@ -600,7 +613,9 @@ def main(argv=None):
     an = sub.add_parser("analyze")
     an.add_argument("bits", nargs="+", help="data/hw/htq_bits_<id>.npz files (one per job)")
     an.add_argument("--ideal", default=None)
-    an.add_argument("--slices", default="data/hw/slice_{comp}_t{t:.1f}.npz")
+    from scripts.run_outputs import add_analysis_arguments
+    add_analysis_arguments(an, required=False,
+                           output_help="explicit output template: {comp}/{t} for tensors, {card} for qPDF")
     an.add_argument("--times", type=float, nargs="+", default=None)
     an.add_argument("--components", nargs="+", default=["00", "10", "01", "11"])
     an.add_argument("--backend", default="")
@@ -618,7 +633,6 @@ def main(argv=None):
     an.add_argument("--qpdf", action="store_true",
                     help="reduce the qpdf-scan bilinears instead of the W slices: "
                          "connected h(m) -> q(x) -> <x> per card")
-    an.add_argument("--out", default="data/hw/qpdf_{card}.npz", help="--qpdf output template")
     an.add_argument("--ms", type=int, nargs="+", default=[1, 2, 3, 4, 5], help="--qpdf separations")
     an.add_argument("--k0", type=float, default=None, help="--qpdf boost (default: from the card)")
     an.add_argument("--refs", default=C.ref_path("qpdf_card_refs.npz"),

@@ -8,7 +8,45 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from scripts.run_outputs import check_output_prefix, output_directory, output_file
+from scripts.run_outputs import analysis_directory, check_output_prefix, output_directory, output_file
+
+
+def test_analysis_runs_preserve_previous_results(tmp_path):
+    campaign = tmp_path / "phoenix" / "2026-10-06"
+    campaign.mkdir(parents=True)
+    first = analysis_directory(campaign)
+    result = first / "slice_00_t0.0.npz"
+    result.write_bytes(b"earlier reduction")
+    second = analysis_directory(campaign)
+    assert first != second
+    assert first.parent == second.parent == campaign / "analysis"
+    assert result.read_bytes() == b"earlier reduction"
+    assert first.name[4] == "-" and first.name[10] == "_"
+    with pytest.raises(FileNotFoundError, match="Campaign directory"):
+        analysis_directory(tmp_path / "missing")
+
+
+def test_hardware_reduction_output_selection(tmp_path, monkeypatch):
+    from htq_hw import __main__ as cli, analyze
+    calls = []
+    monkeypatch.setattr(analyze, "analyze", lambda *a, **kw: calls.append(a[2]))
+    base = ["analyze", "unused.npz"]
+    cli.main(base + ["--run-dir", str(tmp_path)])
+    cli.main(base + ["--run-dir", str(tmp_path)])
+    assert Path(calls[0]).parent != Path(calls[1]).parent
+    assert Path(calls[0]).parent.parent == tmp_path / "analysis"
+    old = tmp_path / "slice_00_t0.0.npz"
+    old.write_bytes(b"previous result")
+    with pytest.raises(FileExistsError):
+        cli.main(base + ["--out", str(tmp_path / "slice_{comp}_t{t:.1f}.npz")])
+    assert old.read_bytes() == b"previous result"
+    with pytest.raises(SystemExit):
+        cli.main(base)
+    qpdf_outputs = []
+    monkeypatch.setattr(cli, "cmd_qpdf", lambda args: qpdf_outputs.append(args.out))
+    cli.main(base + ["--qpdf", "--run-dir", str(tmp_path)])
+    assert Path(qpdf_outputs[0]).parent.parent == tmp_path / "analysis"
+    assert Path(qpdf_outputs[0]).name == "qpdf_{card}.npz"
 
 
 @pytest.mark.parametrize("kind", ["hw", "mps"])

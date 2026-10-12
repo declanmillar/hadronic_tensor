@@ -5,6 +5,24 @@ from pathlib import Path
 import re
 
 
+def analysis_directory(run_dir):
+    """Create a fresh analysis directory within an existing hardware run."""
+    root = Path(run_dir)
+    if not root.is_dir():
+        raise FileNotFoundError(f"Campaign directory does not exist: {root}")
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_%fZ")
+    path = root / "analysis" / stamp
+    path.mkdir(parents=True, exist_ok=False)
+    return path
+
+
+def add_analysis_arguments(parser, *, output_help, required=True):
+    """Select campaign isolation or an explicit output, never both."""
+    group = parser.add_mutually_exclusive_group(required=required)
+    group.add_argument("--run-dir", help="existing hardware campaign directory; create analysis/<UTC timestamp>/")
+    group.add_argument("--out", help=output_help)
+
+
 def output_directory(campaign, explicit=None, *, kind="hw"):
     """Create a dated run directory, or use an explicitly chosen directory.
 
