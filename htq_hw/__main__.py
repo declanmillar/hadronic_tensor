@@ -21,13 +21,14 @@ submitted; real names only resolve a Target for transpilation.
 
 import argparse
 import json
+import math
 import os
 import pathlib
 import sys
 import time
 
 from . import CENTER, DEFAULT_CARD, DT, MIRROR_EPS, NS, __version__, check_versions
-from .campaign import DT_HALF_TIMES as CP_DT_HALF_TIMES
+from .campaign import DT_HALF_TIMES as CP_DT_HALF_TIMES, ESTIMATE_WAIT_SECONDS
 from . import circuits as C
 from . import target as T
 from .model import Lattice
@@ -292,7 +293,8 @@ def cmd_submit(args):
         recs = CP.submit(mode, pubs, info, shots, jobs, lat, emb, args.basis, args.out, service,
                          args.guard, tag=args.tag, log=log, est_seconds=est_s,
                          strict_guard=not args.no_strict_guard, batch=not args.no_batch,
-                         job_offset=(args.only_jobs[0] if args.only_jobs else 0))
+                         job_offset=(args.only_jobs[0] if args.only_jobs else 0),
+                         estimate_wait=args.estimate_wait)
     except CP.BudgetError as e:
         raise SystemExit(f"budget guard: {e}")
     if not args.real and args.fetch:
@@ -490,6 +492,13 @@ def _add_campaign_args(p):
     p.add_argument("--cache", default=str(pathlib.Path.home() / ".cache" / "htq_hw"))
 
 
+def _nonnegative_seconds(value):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise argparse.ArgumentTypeError("must be a finite, non-negative number of seconds")
+    return seconds
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m htq_hw", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -563,8 +572,12 @@ def main(argv=None):
     sb.add_argument("--only-jobs", type=int, nargs="+", default=None)
     sb.add_argument("--guard", type=float, default=0.85,
                     help="fraction of the remaining allocation a submission may claim")
+    sb.add_argument("--estimate-wait", type=_nonnegative_seconds, default=ESTIMATE_WAIT_SECONDS,
+                    metavar="SECONDS", help="wait for a missing job estimate, refreshing every 5 s "
+                    "(default 60; 0 checks once; API request time may extend the wait)")
     sb.add_argument("--no-strict-guard", action="store_true",
-                    help="submit even when the remaining allocation cannot be read")
+                    help="proceed without waiting if a job estimate or remaining allocation "
+                    "cannot be read; explicit over-budget checks still apply")
     sb.add_argument("--no-batch", action="store_true",
                     help="submit job by job instead of inside one Batch")
     sb.add_argument("--tag", default="")

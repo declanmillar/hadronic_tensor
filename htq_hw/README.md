@@ -326,9 +326,19 @@ allocation cannot be read, that is not treated as "it fits": a real submission s
 `--no-strict-guard` says to proceed without the assurance.
 
 The jobs then run inside one `Batch` with a single hoisted sampler, so they execute back to back
-instead of re-queueing 112 times (`--no-batch` to disable).  If the per-job guard cancels a job, the
-loop **stops** rather than sending the remaining jobs, and the cancelled job's metadata is written
-anyway, so no spent job id is ever lost.  Resume from where it stopped with `--only-jobs`.
+instead of re-queueing 112 times (`--no-batch` to disable). A newly submitted job may not yet have
+a usage estimate. The per-job guard waits up to **60 seconds**, refreshing the job handle every
+5 seconds because the SDK caches missing estimates. Set `--estimate-wait SECONDS` to change this
+polling deadline (`0` checks once); time spent in API requests can extend the wait. An available
+over-budget estimate stops submission immediately, as does an unreadable remaining allocation.
+If the estimate is still missing at the deadline, strict mode cancels the job and stops.
+`--no-strict-guard` skips this wait and permits missing estimates or allocation readings, while
+still refusing explicit over-budget values.
+
+If the per-job guard cancels a job, the loop stops and records the cancelled job's metadata.
+The job ID is saved before polling. If cancellation fails (for example, because the job finished
+while the guard waited), submission stops and records the error with `cancelled: null`; check
+that job's status before retrying it.
 
 ## 6. Acceptance gate
 

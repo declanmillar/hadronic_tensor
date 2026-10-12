@@ -530,10 +530,27 @@ def _sampler(mode, fractional: bool, shots_default: int | None = None):
 
 
 GUARD_OK, GUARD_UNVERIFIABLE, GUARD_OVER = "ok", "unverifiable", "over"
+ESTIMATE_WAIT_SECONDS = 60.0
+ESTIMATE_POLL_SECONDS = 5.0
 
 
 class BudgetError(RuntimeError):
     """The allocation cannot be shown to cover what is about to be submitted."""
+
+
+class _CancellationError(BudgetError):
+    def __init__(self, job_id, guard_state, cause):
+        self.guard_state = guard_state
+        super().__init__(f"job {job_id} failed the budget check ({guard_state}), but cancellation "
+                         f"was not confirmed ({type(cause).__name__}: {cause}). "
+                         "Submission stopped. Check its status before retrying.")
+
+
+def _cancel_for_budget(job, state):
+    try:
+        job.cancel()
+    except Exception as exc:
+        raise _CancellationError(job.job_id(), state, exc) from exc
 
 
 def remaining_seconds(service, log=None):
@@ -561,33 +578,54 @@ def preflight_budget(service, est_seconds: float, guard: float = 0.85, log=None)
     return (GUARD_OVER if est_seconds > guard * rem else GUARD_OK), info
 
 
-def budget_guard(job, service=None, guard: float = 0.85, log=None) -> str:
+def budget_guard(job, service=None, guard: float = 0.85, log=None, *,
+                 estimate_wait: float = ESTIMATE_WAIT_SECONDS) -> str:
     """Per-job check against the remaining allocation
     (scripts/ibm_hardware.py:287-306).  Tri-state, because "the platform did
     not tell us" is not the same as "it fits": -> 'ok' | 'unverifiable' |
     'over'.  The caller decides what an unverifiable estimate means; only
-    'over' cancels the job here."""
-    rem = remaining_seconds(service, log)
-    est_s = None
-    try:
-        ue = job.usage_estimation
-        est_s = ue.get("quantum_seconds", None) if ue else None
-    except Exception as e:
-        T._log(f"usage_estimation unavailable ({type(e).__name__})", log)
-    T._log(f"budget: estimated {est_s} s, remaining {rem} s", log)
-    if est_s is None or rem is None:
-        return GUARD_UNVERIFIABLE
-    if est_s > guard * rem:
-        job.cancel()
-        T._log(f"CANCELLED {job.job_id()}: estimate {est_s} s exceeds {guard:.0%} of remaining {rem} s", log)
-        return GUARD_OVER
-    return GUARD_OK
+    'over' cancels the job here.  A missing estimate is retried for up to
+    ``estimate_wait`` seconds with fresh job handles: Runtime caches even
+    ``{"quantum_seconds": None}`` on the original handle.  Missing allocation
+    still fails immediately.  API request time can extend the polling wait."""
+    if not np.isfinite(estimate_wait) or estimate_wait < 0:
+        raise ValueError("estimate_wait must be finite and non-negative")
+    deadline = time.monotonic() + estimate_wait
+    refresh = False
+    while True:
+        rem = remaining_seconds(service, log)
+        if rem is None:
+            return GUARD_UNVERIFIABLE
+        est_s = None
+        try:
+            current = service.job(job.job_id()) if refresh else job
+            ue = current.usage_estimation
+            est_s = ue.get("quantum_seconds", None) if ue else None
+        except Exception as e:
+            T._log(f"usage_estimation unavailable ({type(e).__name__})", log)
+        T._log(f"budget: estimated {est_s} s, remaining {rem} s", log)
+        if est_s is not None:
+            if est_s > guard * rem:
+                _cancel_for_budget(job, GUARD_OVER)
+                T._log(f"CANCELLED {job.job_id()}: estimate {est_s} s exceeds {guard:.0%} of remaining {rem} s", log)
+                return GUARD_OVER
+            return GUARD_OK
+        left = deadline - time.monotonic()
+        if left <= 0:
+            T._log(f"estimate for {job.job_id()} still unavailable after {estimate_wait:g} s wait", log)
+            return GUARD_UNVERIFIABLE
+        delay = min(ESTIMATE_POLL_SECONDS, left)
+        T._log(f"estimate for {job.job_id()} pending; retrying in {delay:g} s "
+               f"({left:.0f} s left)", log)
+        time.sleep(delay)
+        refresh = True
 
 
 def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat: Lattice,
            emb: T.Embedding, basis: str, out_dir: str = "data/hw", service=None, guard: float = 0.85,
            tag: str = "", log=None, est_seconds: float | None = None, strict_guard: bool = True,
-           batch: bool = True, job_offset: int = 0) -> list[dict]:
+           batch: bool = True, job_offset: int = 0,
+           estimate_wait: float = ESTIMATE_WAIT_SECONDS) -> list[dict]:
     """Submit one SamplerV2 job per name list; write data/hw/htq_job_<id>.json.
     ``mode`` is a real backend (from QiskitRuntimeService) or a fake backend /
     AerSimulator for local testing mode.
@@ -600,7 +638,11 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
     the loop and still gets its metadata written, so the run neither spends
     the rest of the allocation nor loses the ids of what it did spend.
 
+    Strict submission waits for pending job estimates before cancelling.
+
     -> [{'job': job, 'meta': dict, 'path': str}] for the jobs kept."""
+    if not np.isfinite(estimate_wait) or estimate_wait < 0:
+        raise ValueError("estimate_wait must be finite and non-negative")
     os.makedirs(out_dir, exist_ok=True)
     fractional = basis == "rzz"
     real = T.is_real_backend(mode)
@@ -633,10 +675,20 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
                     "options": {"twirling_gates": not fractional, "twirling_measure": True, "dd": "XY4"},
                     "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
             path = os.path.join(out_dir, f"htq_job_{jid}.json")
-            state = budget_guard(job, service, guard, log) if real else GUARD_OK
-            stop = state == GUARD_OVER or (state == GUARD_UNVERIFIABLE and strict_guard and real)
-            if stop and state == GUARD_UNVERIFIABLE:
-                job.cancel()
+            meta["guard"] = "pending"
+            with open(path, "w") as f:       # preserve the id even if polling is interrupted
+                json.dump(meta, f, indent=1)
+            try:
+                state = budget_guard(job, service, guard, log,
+                                     estimate_wait=estimate_wait if strict_guard else 0.0) if real else GUARD_OK
+                stop = state == GUARD_OVER or (state == GUARD_UNVERIFIABLE and strict_guard and real)
+                if stop and state == GUARD_UNVERIFIABLE:
+                    _cancel_for_budget(job, state)
+            except _CancellationError as exc:
+                meta.update(guard=exc.guard_state, cancelled=None, cancellation_error=str(exc))
+                with open(path, "w") as f:
+                    json.dump(meta, f, indent=1)
+                raise
             meta["guard"] = state
             meta["cancelled"] = bool(stop)
             with open(path, "w") as f:                      # written either way: never lose an id

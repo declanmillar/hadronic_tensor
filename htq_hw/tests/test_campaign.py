@@ -212,8 +212,103 @@ def test_preflight_states(est, rem, want):
 ])
 def test_budget_guard_is_tri_state(est, rem, want, cancels):
     job = _StubJob(est)
-    assert CP.budget_guard(job, _StubService(rem), 0.85, log=None) == want
+    assert CP.budget_guard(job, _StubService(rem), 0.85, log=None, estimate_wait=0) == want
     assert job.cancelled is cancels
+
+
+@pytest.fixture
+def estimate_clock(monkeypatch):
+    class _Clock:
+        elapsed = 0.0
+        strftime = staticmethod(CP.time.strftime)
+
+        def __init__(self):
+            self.sleeps = []
+
+        def monotonic(self):
+            return self.elapsed
+
+        def sleep(self, seconds):
+            assert seconds > 0
+            self.sleeps.append(seconds)
+            self.elapsed += seconds
+
+    clock = _Clock()
+    monkeypatch.setattr(CP, "time", clock)
+    return clock
+
+
+class _RefreshingService(_StubService):
+    def __init__(self, remaining, estimates=()):
+        super().__init__(remaining)
+        self.estimates = list(estimates)
+        self.job_requests = []
+        self.handles = []
+
+    def job(self, jid):
+        self.job_requests.append(jid)
+        est = self.estimates.pop(0) if self.estimates else None
+        if isinstance(est, Exception):
+            raise est
+        handle = _StubJob(est=est, jid=jid)
+        self.handles.append(handle)
+        return handle
+
+
+def test_budget_guard_refreshes_cached_missing_estimate(estimate_clock):
+    original = _StubJob()
+    original.usage_estimation = {"quantum_seconds": None}  # Runtime caches this dict
+    service = _RefreshingService(10800.0, [None, 100.0])
+
+    assert CP.budget_guard(original, service) == CP.GUARD_OK
+    assert estimate_clock.sleeps == [5.0, 5.0]
+    assert service.job_requests == [original.job_id()] * 2
+    assert all(handle is not original for handle in service.handles)
+    assert service.handles[0] is not service.handles[1]
+    assert original.usage_estimation == {"quantum_seconds": None}
+    assert original.cancelled is False
+
+
+@pytest.mark.parametrize("est,rem,want", [
+    (100.0, 10800.0, CP.GUARD_OK),
+    (10000.0, 10800.0, CP.GUARD_OVER),
+    (None, None, CP.GUARD_UNVERIFIABLE),
+    (100.0, None, CP.GUARD_UNVERIFIABLE),
+])
+def test_budget_guard_does_not_wait_unnecessarily(est, rem, want, estimate_clock):
+    service = _RefreshingService(rem)
+    assert CP.budget_guard(_StubJob(est), service) == want
+    assert estimate_clock.sleeps == [] and service.job_requests == []
+
+
+@pytest.mark.parametrize("wait,sleeps", [
+    (0.0, []),
+    (7.0, [5.0, 2.0]),
+    (60.0, [5.0] * 12),
+])
+def test_budget_guard_missing_estimate_has_bounded_wait(wait, sleeps, estimate_clock):
+    job, service = _StubJob(), _RefreshingService(10800.0)
+    assert CP.budget_guard(job, service, estimate_wait=wait) == CP.GUARD_UNVERIFIABLE
+    assert estimate_clock.sleeps == sleeps and estimate_clock.elapsed == wait
+    assert len(service.job_requests) == len(sleeps)
+    assert job.cancelled is False  # strict submission owns cancellation on timeout
+
+
+@pytest.mark.parametrize("estimates,want", [
+    ([RuntimeError("estimate pending"), 100.0], CP.GUARD_OK),
+    ([RuntimeError("estimate pending")] * 2, CP.GUARD_UNVERIFIABLE),
+])
+def test_budget_guard_refresh_errors_do_not_reset_deadline(estimates, want, estimate_clock):
+    service = _RefreshingService(10800.0, estimates)
+    assert CP.budget_guard(_StubJob(), service, estimate_wait=7.0) == want
+    assert estimate_clock.sleeps == [5.0, 2.0]
+    assert len(service.job_requests) == 2
+
+
+def test_budget_guard_cancels_an_overbudget_refreshed_estimate(estimate_clock):
+    job, service = _StubJob(), _RefreshingService(10800.0, [10000.0])
+    assert CP.budget_guard(job, service) == CP.GUARD_OVER
+    assert job.cancelled is True and estimate_clock.sleeps == [5.0]
 
 
 def _submit_args(tmp_path, n_jobs=3):
@@ -261,6 +356,128 @@ def test_guard_stops_the_loop_and_still_records_the_cancelled_job(tmp_path, monk
     assert m["cancelled"] is True and m["guard"] == CP.GUARD_OVER and m["job_id"] == "stub-0"
 
 
+def test_strict_submission_continues_once_estimates_arrive(tmp_path, monkeypatch, estimate_clock):
+    sent = []
+
+    class _Sampler:
+        def run(self, pubs):
+            job = _StubJob(jid=f"pending-{len(sent)}")
+            sent.append(job)
+            return job
+
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    recs = CP.submit("dev", service=_RefreshingService(10800.0, [100.0] * 3),
+                     est_seconds=10.0, batch=False,
+                     **_submit_args(tmp_path))
+    assert len(recs) == 3 and not any(job.cancelled for job in sent)
+    assert [r["meta"]["job_index"] for r in recs] == [0, 1, 2]
+    assert all(r["meta"]["guard"] == CP.GUARD_OK for r in recs)
+    assert estimate_clock.sleeps == [5.0] * 3
+
+
+@pytest.mark.parametrize("stop_at", [0, 1])
+def test_strict_submission_timeout_records_cancelled_job(
+        tmp_path, monkeypatch, estimate_clock, stop_at):
+    sent, messages = [], []
+
+    class _Sampler:
+        def run(self, pubs):
+            job = _StubJob(est=100.0 if len(sent) < stop_at else None,
+                           jid=f"pending-{len(sent)}")
+            sent.append(job)
+            return job
+
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    recs = CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
+                     batch=False, log=messages.append,
+                     **_submit_args(tmp_path))
+    assert len(recs) == stop_at and len(sent) == stop_at + 1
+    assert estimate_clock.elapsed == 60.0 and sent[-1].cancelled is True
+    meta = json.loads((tmp_path / f"htq_job_pending-{stop_at}.json").read_text())
+    assert meta["job_index"] == stop_at
+    assert meta["job_id"] == sent[-1].job_id()
+    assert meta["cancelled"] is True and meta["guard"] == CP.GUARD_UNVERIFIABLE
+
+
+def test_submission_persists_job_id_before_interruptible_wait(tmp_path, monkeypatch, estimate_clock):
+    sent = []
+
+    class _Sampler:
+        def run(self, pubs):
+            job = _StubJob(jid=f"pending-{len(sent)}")
+            sent.append(job)
+            return job
+
+    def interrupt(seconds):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    monkeypatch.setattr(estimate_clock, "sleep", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
+                  batch=False, **_submit_args(tmp_path))
+    assert len(sent) == 1 and sent[0].cancelled is False
+    meta = json.loads((tmp_path / "htq_job_pending-0.json").read_text())
+    assert meta["job_id"] == "pending-0" and meta["job_index"] == 0
+    assert meta["guard"] == "pending" and "cancelled" not in meta
+
+
+@pytest.mark.parametrize("est,guard", [
+    (None, CP.GUARD_UNVERIFIABLE),
+    (10000.0, CP.GUARD_OVER),
+])
+def test_submission_stops_with_uncertain_cancellation_without_retry_advice(
+        tmp_path, monkeypatch, estimate_clock, est, guard):
+    sent, messages = [], []
+
+    class _UncancellableJob(_StubJob):
+        def cancel(self):
+            raise RuntimeError("job already completed")
+
+    class _Sampler:
+        def run(self, pubs):
+            job = _UncancellableJob(est=est, jid=f"uncertain-{len(sent)}")
+            sent.append(job)
+            return job
+
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    with pytest.raises(CP.BudgetError, match="Check its status before retrying") as exc:
+        CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
+                  batch=False, estimate_wait=7.0, log=messages.append,
+                  **_submit_args(tmp_path))
+    assert len(sent) == 1 and sent[0].cancelled is False
+    meta = json.loads((tmp_path / "htq_job_uncertain-0.json").read_text())
+    assert meta["job_id"] == "uncertain-0" and meta["job_index"] == 0
+    assert meta["guard"] == guard and meta["cancelled"] is None
+    assert "job already completed" in meta["cancellation_error"]
+    assert not any("--only-jobs" in message for message in messages)
+    assert "--only-jobs" not in str(exc.value)
+
+
+def test_nonstrict_submission_keeps_missing_estimates_without_waiting(
+        tmp_path, monkeypatch, estimate_clock):
+    sent = []
+
+    class _Sampler:
+        def run(self, pubs):
+            job = _StubJob(jid=f"unverified-{len(sent)}")
+            sent.append(job)
+            return job
+
+    monkeypatch.setattr(T, "is_real_backend", lambda be: True)
+    monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
+    service = _RefreshingService(10800.0)
+    recs = CP.submit("dev", service=service, est_seconds=10.0, batch=False,
+                     strict_guard=False, **_submit_args(tmp_path))
+    assert len(recs) == 3 and not any(job.cancelled for job in sent)
+    assert all(r["meta"]["guard"] == CP.GUARD_UNVERIFIABLE for r in recs)
+    assert estimate_clock.sleeps == [] and service.job_requests == []
+
+
 def test_local_submission_needs_no_allocation_and_keeps_every_job(tmp_path, monkeypatch):
     class _Sampler:
         def run(self, pubs):
@@ -270,3 +487,45 @@ def test_local_submission_needs_no_allocation_and_keeps_every_job(tmp_path, monk
     recs = CP.submit("fake", log=None, **_submit_args(tmp_path))
     assert len(recs) == 3 and all(r["meta"]["guard"] == CP.GUARD_OK for r in recs)
     assert all(r["meta"]["cancelled"] is False for r in recs)
+
+
+@pytest.mark.parametrize("wait_args,wait", [
+    ([], 60.0),
+    (["--estimate-wait", "0"], 0.0),
+    (["--estimate-wait", "17.5"], 17.5),
+])
+def test_submit_cli_forwards_estimate_wait(monkeypatch, wait_args, wait):
+    from htq_hw import __main__ as cli
+
+    names = [f"p{i}" for i in range(3)]
+    calls = []
+
+    def submit(*args, **kwargs):
+        calls.append((args, kwargs))
+        return []
+
+    monkeypatch.setattr(cli, "check_versions", lambda: [])
+    monkeypatch.setattr(cli, "_setup", lambda *a, **k: (None, None, None, "fake", None, []))
+    monkeypatch.setattr(CP, "build_pub_circuits", lambda *a, **k: ({}, {}, None))
+    monkeypatch.setattr(CP, "group_jobs", lambda *a, **k: [[name] for name in names])
+    monkeypatch.setattr(cli, "_plan", lambda *a, **k: ({"shots": {name: 100 for name in names}}, 1e-4))
+    monkeypatch.setattr(T, "is_real_backend", lambda be: False)
+    monkeypatch.setattr(T, "backend_label", lambda be: "fake")
+    monkeypatch.setattr(CP, "submit", submit)
+
+    cli.main(["submit", *wait_args])
+    assert len(calls) == 1
+    args, kwargs = calls[0]
+    assert args[4] == [["p0"], ["p1"], ["p2"]]
+    assert kwargs["estimate_wait"] == wait and kwargs["strict_guard"] is True
+
+
+@pytest.mark.parametrize("value", ["-1", "nan", "inf"])
+def test_submit_cli_rejects_invalid_estimate_wait_before_submission(monkeypatch, capsys, value):
+    from htq_hw import __main__ as cli
+
+    monkeypatch.setattr(cli, "cmd_submit", lambda args: pytest.fail("invalid wait reached submission"))
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["submit", "--estimate-wait", value])
+    assert exc.value.code == 2
+    assert "finite, non-negative" in capsys.readouterr().err
