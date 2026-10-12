@@ -71,14 +71,14 @@ W_hw, W_ref, W_err, band, corr = {}, {}, {}, {}, {}
 
 
 def onesided(times, x, G, msk, sig_t):
-    return analysis.onesided_ft(times, x, G * msk, q0, q1, sig_t, sig_x, DT, DX)
+    return analysis.onesided_ft(times, x, np.where(msk, G, 0.0), q0, q1, sig_t, sig_x, DT, DX)
 
 
 def werr(times, x, err, msk, sig_t):
     wt = np.exp(-times ** 2 / (2 * sig_t ** 2)).copy()
     wt[0] *= 0.5
     wx = np.exp(-x ** 2 / (2 * sig_x ** 2))[None, :] * msk
-    return 2 * DT * DX * np.sqrt(((wt[:, None] * wx) ** 2 * err ** 2).sum())
+    return 2 * DT * DX * np.sqrt(((wt[:, None] * wx) ** 2 * np.where(msk, err, 0.0) ** 2).sum())
 
 
 for comp in tensor.COMPONENTS:
@@ -97,16 +97,31 @@ for comp in tensor.COMPONENTS:
         kap = np.asarray(d["kappa_v"])[0].real if "kappa_v" in d.files else np.ones(NS)
         one = np.asarray(d["b_cal"])[0] if ("b_cal" in d.files and comp in ("00", "01")) else one_mps[comp][ti]
         G_hw = (Ccal - one * A0[nu]) - vac_conn[comp][ti]
-        ok = kap > args.kap_min
+        finite = np.isfinite(G_hw) & np.isfinite(Cerr) & np.isfinite(kap) & (Cerr >= 0)
+        ok = (kap > args.kap_min) & finite
+        if not ok.any():
+            log_msg.append(f"{comp} t={t}: omitted; no finite calibrated probes above kappa threshold")
+            continue
         rows[t] = (G_hw, Cerr, ok)
-        log_msg.append(f"{comp} t={t}: {int((~ok).sum())} masked, median err {np.median(Cerr[ok]):.4f}")
+        log_msg.append(f"{comp} t={t}: {int((~ok).sum())} masked ({int((~finite).sum())} nonfinite/invalid), "
+                       f"median err {np.median(Cerr[ok]):.4f}")
     if not rows:
         log_msg.append(f"{comp}: no slices found")
         continue
     times = np.array(sorted(rows))
+    if not np.isclose(times[0], 0, rtol=0, atol=1e-9):
+        log_msg.append(f"{comp}: omitted; the one-sided transform requires a valid t=0 row")
+        continue
+    if len(times) < 2:
+        log_msg.append(f"{comp}: omitted; no valid nonzero-time row")
+        continue
     Gh = np.array([rows[t][0] for t in times]).real
     Ge = np.array([rows[t][1] for t in times])
     mask = np.array([rows[t][2] for t in times])
+    # Calibration can leave NaNs on rejected probes. Zero them explicitly;
+    # multiplication by a zero mask would still contaminate the transform.
+    Gh = np.where(mask, Gh, 0.0)
+    Ge = np.where(mask, Ge, 0.0)
     ti_mps = [int(np.argmin(np.abs(g.times - t))) for t in times]
     Gr = g.g[comp][ti_mps].real
     if comp in ("00", "01"):          # charge conservation: sum_x <J0(x,t) J^nu(0)>_conn = 0
@@ -128,6 +143,9 @@ for comp in tensor.COMPONENTS:
     log_msg.append(f"{comp}: t_max={tmax}, sigma_t={sig_t:.2f}, W_err={W_err[comp]:.3f}, "
                    f"max|W| hw {np.abs(W_hw[comp]).max():.3f} ref {np.abs(W_ref[comp]).max():.3f}, "
                    f"corr(hw, ref) = {corr[comp]:.3f}")
+
+if not W_hw:
+    raise SystemExit("\n".join(log_msg) + "\nNo usable components; no tensor plotted.")
 
 # ---- Ward check across components on the assembled hardware tensor
 if all(c in W_hw for c in tensor.COMPONENTS):
