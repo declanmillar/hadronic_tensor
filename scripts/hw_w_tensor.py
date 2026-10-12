@@ -45,11 +45,18 @@ p.add_argument("--sig-xf", type=float, default=2.0, help="sigma_x = nx / sig_xf 
 p.add_argument("--out", default=None)
 p.add_argument("--label", default="hardware")
 args = p.parse_args()
+if not (np.isfinite(args.tmax) and args.tmax >= 0 and np.isfinite(args.sig_xf) and args.sig_xf > 0):
+    p.error("--tmax must be nonnegative and --sig-xf positive")
+if not np.isfinite(args.kap_min):
+    p.error("--kap-min must be finite")
 
 g = tensor.load_mps_components(args.j0, args.j1)
 lat, C, k0 = g.lat, g.center, g.k0
 NS = lat.ns
 slice_times = np.array(args.times if args.times else np.arange(0.0, args.tmax + 1e-9, 0.5))
+if not (np.isfinite(slice_times).all() and (slice_times >= 0).all()
+        and (np.diff(slice_times) > 0).all()):
+    p.error("--times must be finite, nonnegative and strictly increasing")
 d0 = np.load(args.j0)
 d1 = np.load(args.j1)
 A0 = {"0": complex(d0["insert_1pt_wp"]), "1": complex(d1["insert_1pt_wp"])}
@@ -85,24 +92,35 @@ for comp in tensor.COMPONENTS:
     nu = comp[1]
     x = g.x[comp]
     rows = {}
+    steps = []
     for t in slice_times:
         path = args.slices.format(comp=comp, t=t)
         if not os.path.exists(path):
             continue
         d = np.load(path, allow_pickle=True)
         assert str(d["component"]) == comp, (path, d["component"])
+        saved_t = float(d["t"]) if "t" in d.files else float(d["times"][0])
+        if not np.isclose(saved_t, t, rtol=0, atol=1e-9):
+            raise ValueError(f"{path}: stored time {saved_t} does not match requested time {t}")
         ti = int(np.argmin(np.abs(g.times - t)))
+        if not np.isclose(g.times[ti], t, rtol=0, atol=1e-9):
+            raise ValueError(f"{path}: no MPS reference at t={t}; nearest is {g.times[ti]}")
         Ccal = np.asarray(d["C_cal"])[0]
         Cerr = np.asarray(d["C_err"])[0].real
         kap = np.asarray(d["kappa_v"])[0].real if "kappa_v" in d.files else np.ones(NS)
         one = np.asarray(d["b_cal"])[0] if ("b_cal" in d.files and comp in ("00", "01")) else one_mps[comp][ti]
         G_hw = (Ccal - one * A0[nu]) - vac_conn[comp][ti]
+        if any(np.shape(a) != (NS,) for a in (G_hw, Cerr, kap)):
+            raise ValueError(f"{path}: expected {NS} probe values")
         finite = np.isfinite(G_hw) & np.isfinite(Cerr) & np.isfinite(kap) & (Cerr >= 0)
         ok = (kap > args.kap_min) & finite
+        if not np.isfinite(g.g[comp][ti]).all():
+            raise ValueError(f"{path}: nonfinite MPS reference")
         if not ok.any():
             log_msg.append(f"{comp} t={t}: omitted; no finite calibrated probes above kappa threshold")
             continue
         rows[t] = (G_hw, Cerr, ok)
+        steps.append(float(d["dt"]) if "dt" in d.files else DT)
         log_msg.append(f"{comp} t={t}: {int((~ok).sum())} masked ({int((~finite).sum())} nonfinite/invalid), "
                        f"median err {np.median(Cerr[ok]):.4f}")
     if not rows:
@@ -115,6 +133,8 @@ for comp in tensor.COMPONENTS:
     if len(times) < 2:
         log_msg.append(f"{comp}: omitted; no valid nonzero-time row")
         continue
+    if not np.allclose(steps, steps[0], rtol=0, atol=1e-9):
+        raise ValueError(f"{comp}: cannot pool different evolution steps in one tensor")
     Gh = np.array([rows[t][0] for t in times]).real
     Ge = np.array([rows[t][1] for t in times])
     mask = np.array([rows[t][2] for t in times])
@@ -139,7 +159,11 @@ for comp in tensor.COMPONENTS:
     W_ref[comp] = onesided(times, x, Gr, mask, sig_t)
     W_err[comp] = werr(times, x, Ge, mask, sig_t)
     band[comp] = np.ptp(np.stack([onesided(times, x, Gh, mask, f * sig_t) for f in (0.75, 1.0, 1.5)]), axis=0)
-    corr[comp] = float(np.corrcoef(W_hw[comp].ravel(), W_ref[comp].ravel())[0, 1])
+    corr[comp] = (float(np.corrcoef(W_hw[comp].ravel(), W_ref[comp].ravel())[0, 1])
+                  if np.std(W_hw[comp]) > 0 and np.std(W_ref[comp]) > 0 else float("nan"))
+    for value in (W_hw[comp], W_ref[comp], W_err[comp], band[comp]):
+        if not np.isfinite(value).all():
+            raise ValueError(f"{comp}: nonfinite assembled output")
     log_msg.append(f"{comp}: t_max={tmax}, sigma_t={sig_t:.2f}, W_err={W_err[comp]:.3f}, "
                    f"max|W| hw {np.abs(W_hw[comp]).max():.3f} ref {np.abs(W_ref[comp]).max():.3f}, "
                    f"corr(hw, ref) = {corr[comp]:.3f}")
