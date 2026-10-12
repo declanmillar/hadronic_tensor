@@ -454,6 +454,92 @@ def _calib_J1(job: JobBits, family: str, t: float, ideal_j0: IdealGrid, anc: str
                 N=min(p1["N"], p2["N"]), mirror=mnames)
 
 
+def _calib_J1_setting(job: JobBits, family: str, t: float, setting: str,
+                      ideal_j0: IdealGrid, anc: str = "X", dt: float = DT,
+                      log=None) -> dict | None:
+    """Signed contribution of one XY setting, calibrated in its source job.
+
+    For split jobs the guarded median fill stays within this setting and
+    Pauli term: borrowing the other job's mirror would mix calibrations.
+    Complete jobs retain the existing per-term fill in `_calib_J1`.
+    """
+    pname = pub_name(family, t, False, setting, anc, dt)
+    if not job.has(pname):
+        return None
+    mname = job.mirror_name(t, setting, anc, family, dt) if t > 0 else pname
+    if mname is None:
+        _log(f"  {job.job_id}: {pname} has no same-job mirror; readout excluded", log)
+        return None
+    p, m = job.est(pname, setting), job.est(mname, setting)
+    kap, kerr = np.ones(lat_ns(job)), np.zeros(lat_ns(job))
+    if t > 0:
+        for term in (1, 2):
+            take = p["term"] == term
+            kap[take], kerr[take] = kappa_from_mirror(
+                m["xT"][take], m["xT_err"][take], ideal_j0.sx_ideal0("J1", term)[take])
+    sign = np.where(p["term"] == 1, 1.0, -1.0)
+    c_a = FAMILY_COEFF[family] * (job.eta if family.startswith("j1") else 1.0)
+    coeff = c_a * job.eta / 4 * sign
+    var = coeff ** 2 * (p["xT_err"] ** 2 + p["xT"] ** 2 * kerr ** 2) / kap ** 2
+    return dict(anc_cal=coeff * p["xT"] / kap, anc_raw=coeff * p["xT"],
+                var=var, kap=kap, one=job.eta / 4 * sign * p["T"], N=p["N"])
+
+
+def _split_J1_slab(jobs: list[JobBits], fams, t: float, ideal_j0: IdealGrid,
+                   anc: str = "X", dt: float = DT, log=None) -> dict | None:
+    """Merge each split setting once, then add the independent settings.
+
+    Only jobs not already used as a complete component may enter here.
+    No Cartesian pairing or raw-count pooling: every physics measurement
+    uses its source job's mirrors before repeated settings are averaged.
+    """
+    by_setting = {}
+    have_physics = False
+    for setting in ("XYA", "XYB"):
+        slabs = []
+        for job in jobs:
+            have_physics |= any(job.has(pub_name(fam, t, False, setting, anc, dt)) for fam in fams)
+            parts = [_calib_J1_setting(job, fam, t, setting, ideal_j0, anc, dt, log)
+                     for fam in fams]
+            if any(p is None for p in parts):
+                continue
+            slabs.append(dict(
+                anc_cal=sum(p["anc_cal"] for p in parts),
+                anc_raw=sum(p["anc_raw"] for p in parts),
+                var=sum(p["var"] for p in parts),
+                one=np.mean([p["one"] for p in parts], axis=0),
+                family_kaps={f: p["kap"] for f, p in zip(fams, parts)},
+                family_shots={f: p["N"] for f, p in zip(fams, parts)}, job=job.job_id))
+        by_setting[setting] = slabs
+    missing = [setting for setting, slabs in by_setting.items() if not slabs]
+    if missing:
+        if have_physics:
+            _log(f"  {'+'.join(fams)} J1 probes t={t:g}, dt={dt:g}: no calibrated "
+                 f"{'/'.join(missing)} readout covering all insertion families; "
+                 "incomplete split-job measurements excluded", log)
+        return None
+    merged = {}
+    for setting, slabs in by_setting.items():
+        value, err = _merge(slabs)
+        raw, _ = _merge(slabs, key="anc_raw")
+        merged[setting] = dict(
+            value=value, raw=raw, var=err ** 2,
+            one=np.mean([s["one"] for s in slabs], axis=0),
+            family_kaps={f: np.mean([s["family_kaps"][f] for s in slabs], axis=0) for f in fams},
+            family_shots={f: sum(s["family_shots"][f] for s in slabs) for f in fams})
+    a, b = merged["XYA"], merged["XYB"]
+    even = np.arange(ideal_j0.ns) % 2 == 0
+    kap1 = [np.where(even, a["family_kaps"][f], b["family_kaps"][f]) for f in fams]
+    kap2 = [np.where(even, b["family_kaps"][f], a["family_kaps"][f]) for f in fams]
+    sources = list(dict.fromkeys(s["job"] for slabs in by_setting.values() for s in slabs))
+    return dict(anc_cal=a["value"] + b["value"], anc_raw=a["raw"] + b["raw"],
+                var=a["var"] + b["var"], one=a["one"] + b["one"],
+                kap1=np.mean(kap1, axis=0), kap2=np.mean(kap2, axis=0),
+                kap=np.mean(np.minimum(kap1, kap2), axis=0),
+                N=sum(min(a["family_shots"][f], b["family_shots"][f]) for f in fams),
+                jobs=sources)
+
+
 # ------------------------------------------------------------------ slices
 def _merge(slabs: list[dict], key: str = "anc_cal", var: str = "var"):
     """Chi2-inflated inverse-variance merge (scripts/ibm_hardware.py:405-425)."""
@@ -477,7 +563,7 @@ def component_slice(comp: str, t: float, jobs: list[JobBits], ideals: dict, lat:
     A0 = ideals[fams[0]].A0
     id_b = ideal_j0.id_b() if probe == "J0" else np.zeros(lat.ns)
     id_a = ideals[fams[0]].id_a
-    per_job = []
+    per_job, complete_jobs = [], set()
     for job in jobs:
         parts = []
         for fam in fams:
@@ -507,6 +593,15 @@ def component_slice(comp: str, t: float, jobs: list[JobBits], ideals: dict, lat:
             slab["kap2"] = np.mean([p["kap2"] for p in parts], 0)
             slab["one"] = np.mean([p["one"] for p in parts], 0)
         per_job.append(slab)
+        complete_jobs.add(id(job))
+    split = None
+    if probe == "J1":
+        split = _split_J1_slab([job for job in jobs if id(job) not in complete_jobs],
+                               fams, t, ideal_j0, anc, dt, log)
+        if split is not None:
+            per_job.append(split)
+            _log(f"  {comp} t={t:g}, dt={dt:g}: combined separately calibrated XY readouts "
+                 f"from {len(split['jobs'])} jobs", log)
     if not per_job:
         return None
     anc_cal, err = _merge(per_job)
@@ -517,8 +612,13 @@ def component_slice(comp: str, t: float, jobs: list[JobBits], ideals: dict, lat:
            "c_a": FAMILY_COEFF[fams[0]] * (lat_eta(jobs) if fams[0].startswith("j1") else 1.0),
            "id_b": id_b, "kappa_v": kap[None, :], "C_err": err[None, :],
            "tier": 4, "backend": backend, "nshot": int(sum(s["N"] for s in per_job)),
-           "merged_jobs": np.array([s["job"] for s in per_job]), "component": comp, "t": float(t),
+           "merged_jobs": np.array(list(dict.fromkeys(
+               source for s in per_job for source in (s["jobs"] if "jobs" in s else [s["job"]])))),
+           "component": comp, "t": float(t),
            "mask": (kap < KAP_MASK)[None, :]}
+    if split is not None:
+        out["split_readout_jobs"] = np.array(split["jobs"])
+        out["split_readout_calibration"] = "same-job mirrors; median fill per readout and Pauli term"
     if probe == "J0":
         b_cal, _ = _merge(per_job, key="b_cal", var="bvar")
         C_cal = rebuild_C(anc_cal, b_cal, id_a, id_b, A0)
@@ -658,11 +758,14 @@ def kappa_summary(jobs: list[JobBits], ideals: dict, times, lat: Lattice, anc: s
             if r0 is not None:
                 out[f"j0_J0_kappa_t{t:.1f}"] = r0["kap"]
                 out[f"j0_J0_mask_t{t:.1f}"] = r0["kap"] < KAP_MASK
-            r1 = _calib_J1(job, "j0", t, ideal_j0, anc)
-            if r1 is not None:
-                for k in (1, 2):
-                    out[f"j0_J1T{k}_kappa_t{t:.1f}"] = r1[f"kap{k}"]
-                    out[f"j0_J1T{k}_mask_t{t:.1f}"] = r1[f"kap{k}"] < KAP_MASK
+        # Use the slice path so split readouts have the same diagnostics as
+        # the correlator, including complete/split mixtures and repeats.
+        r1 = component_slice("10", t, jobs, ideals, lat, lat.ns // 2, anc=anc, wing=False)
+        if r1 is not None:
+            for k in (1, 2):
+                kap = r1[f"kappa{k}_v"][0]
+                out[f"j0_J1T{k}_kappa_t{t:.1f}"] = kap
+                out[f"j0_J1T{k}_mask_t{t:.1f}"] = kap < KAP_MASK
     return out
 
 

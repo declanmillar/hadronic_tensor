@@ -196,6 +196,233 @@ def test_kappa_never_transferred_between_probe_weights(setup, tmp_path):
         assert abs(got - wrong) > 0.15, (comp, got, wrong)     # the other weight's kappa is NOT used
 
 
+def test_grouped_rela_campaign_retains_split_xy_slices(setup, tmp_path):
+    """The real packer's per-readout groups must not drop W10/W11.
+
+    Keep the relA-core grouping (dither, j1 mirrors, plain Z and half-step
+    controls), but only one positive time and six sites for an offline test.
+    The split and unsplit runs consume exactly the same recorded bits.
+    """
+    card, lat, tpl = setup
+    specs = CP.manifest(times=TIMES, j1_mirrors=True, dither=True,
+                        dither_refs=False, dt_half=True, dt_half_times=TIMES,
+                        plain=True, card="synthetic_ns6", preset="relA-core")
+    groups = CP.group_jobs(specs)
+    prefix = CP.name_prefix("relA-core", "synthetic_ns6")
+    for dt in (0.5, 0.25):
+        names = [CP.pub_name("j0", 0.5, False, r, dt=dt, prefix=prefix)
+                 for r in ("XYA", "XYB")]
+        assert not any(all(n in group for n in names) for group in groups)
+    bits = _synthetic_bits(card, lat, specs, {"Z": 0.8, "XYA": 0.6, "XYB": 0.75},
+                           2000, seed=71)
+    split_paths = []
+    for i, names in enumerate(groups):
+        path = tmp_path / f"bits_{i}.npz"
+        np.savez_compressed(path, job_id=f"recorded-{i}", **{n: bits[n] for n in names})
+        split_paths.append(str(path))
+    whole_path = tmp_path / "bits_whole.npz"
+    np.savez_compressed(whole_path, job_id="whole", **bits)
+    kwargs = dict(eta=card["couplings"]["eta"], prefix=prefix, log=None)
+    whole = A.analyze([str(whole_path)], tpl, str(tmp_path / "whole_{comp}_t{t:.1f}.npz"),
+                      NS, CENTER, **kwargs)
+    split = A.analyze(split_paths, tpl, str(tmp_path / "split_{comp}_t{t:.1f}.npz"),
+                      NS, CENTER, **kwargs)
+    assert set(split) == set(whole)
+    g0 = A.IdealGrid(tpl.format(family="j0"))
+    strong = ((np.abs(g0.sx_ideal0("J1", 1)) > A.KAP_GUARD)
+              & (np.abs(g0.sx_ideal0("J1", 2)) > A.KAP_GUARD))
+    assert strong.any()
+    for comp in ("10", "11"):
+        for key in ((comp, 0.0), (comp, 0.5), (comp, 0.5, 0.25)):
+            with np.load(split[key]) as got, np.load(whole[key]) as ref:
+                for field in ("C", "C_cal", "C_err", "kappa_v", "kappa1_v", "kappa2_v"):
+                    # A split job fills weak mirror sites only from its own
+                    # observed bonds; the old complete-job convention fills
+                    # across a full term. Strong-reference sites are exact.
+                    np.testing.assert_allclose(got[field][:, strong], ref[field][:, strong],
+                                               rtol=1e-12, atol=1e-12)
+                t, dt = key[1], key[2] if len(key) == 3 else 0.5
+                assert float(got["dt"]) == dt
+                fams = A.COMPONENT_LAYOUT[comp][0]
+                relevant = {CP.pub_name(f, t, False, r, dt=dt, prefix=prefix)
+                            for f in fams for r in ("XYA", "XYB")}
+                source_ids = {f"recorded-{i}" for i, names in enumerate(groups)
+                              if relevant.intersection(names)}
+                assert set(got["merged_jobs"].tolist()) == source_ids
+                assert len(got["merged_jobs"]) == len(source_ids)
+
+
+class _XYIdeal:
+    """Nonzero mirror references avoid statistical/median-fill ambiguity."""
+
+    def __init__(self, family):
+        self.ns = NS
+        self.id_a = 0.5 if family == "j0" else 0.0
+        self.A0 = 0.3
+
+    def id_b(self):
+        return (-1.0) ** np.arange(NS) / 2
+
+    def sx_ideal0(self, probe, term=None):
+        assert probe == "J1"
+        return np.full(NS, 0.4 if term == 1 else -0.3)
+
+
+def _xy_cached_job(job_id, setting, *, kappa=1.0, families=("j0",),
+                   signal=0.16, error=0.02, mirror=True, dt=0.5):
+    """Exact estimator fixture: isolate job joining from shot fluctuations."""
+    job = A.JobBits({}, Lattice(NS), job_id, eta=1.3)
+    term = np.array([A.j1_term_in_setting(b, setting) for b in range(NS)])
+
+    def record(name, sx, sxerr):
+        job.bits[name] = np.zeros((100, job.lat.n_wires), np.uint8)
+        job._cache[name] = dict(term=term, xT=np.broadcast_to(sx, (NS,)).copy(),
+                                xT_err=np.full(NS, sxerr), T=np.zeros(NS),
+                                T_err=np.full(NS, error), N=100, setting=setting,
+                                sx=np.broadcast_to(sx, (NS,)).copy(), sxe=np.full(NS, sxerr),
+                                xa=0.0, xa_err=0.01)
+
+    for i, family in enumerate(families):
+        record(CP.pub_name(family, 0.5, False, setting, dt=dt),
+               kappa * signal * (i + 1), error)
+    if mirror:
+        ref = np.where(term == 1, 0.4, -0.3)
+        record(CP.pub_name("j0", 0.5, True, setting, dt=dt), kappa * ref, 0.0)
+    return job
+
+
+@pytest.mark.parametrize("comp", ["10", "11"])
+def test_split_xy_settings_use_each_jobs_own_mirror(comp):
+    fams = A.COMPONENT_LAYOUT[comp][0]
+    ideals = {f: _XYIdeal(f) for f in set(fams) | {"j0"}}
+    jobs = [_xy_cached_job("source-A", "XYA", kappa=0.35, families=fams, signal=0.16),
+            _xy_cached_job("source-B", "XYB", kappa=0.85, families=fams, signal=0.06)]
+    got = A.component_slice(comp, 0.5, jobs, ideals, jobs[0].lat, CENTER, wing=False)
+    assert got is not None
+    coeff = sum(A.FAMILY_COEFF[f] * (1.3 if f.startswith("j1") else 1.0) * (i + 1)
+                for i, f in enumerate(fams))
+    sign = (-1.0) ** np.arange(NS)
+    expected = coeff * 1.3 / 4 * (0.16 - 0.06) * sign
+    raw = coeff * 1.3 / 4 * (0.35 * 0.16 - 0.85 * 0.06) * sign
+    np.testing.assert_allclose(got["C_cal"][0], expected, atol=1e-15)
+    np.testing.assert_allclose(got["C"][0], raw, atol=1e-15)
+    np.testing.assert_allclose(got["kappa1_v"][0], np.where(sign == 1, 0.35, 0.85))
+    np.testing.assert_allclose(got["kappa2_v"][0], np.where(sign == 1, 0.85, 0.35))
+    assert set(got["merged_jobs"].tolist()) == {"source-A", "source-B"}
+    if comp == "10":
+        summary = A.kappa_summary(jobs, ideals, [0.5], jobs[0].lat)
+        for term in (1, 2):
+            kap = got[f"kappa{term}_v"][0]
+            np.testing.assert_array_equal(summary[f"j0_J1T{term}_kappa_t0.5"], kap)
+            np.testing.assert_array_equal(summary[f"j0_J1T{term}_mask_t0.5"], kap < A.KAP_MASK)
+
+
+@pytest.mark.parametrize("all_weak", [False, True], ids=["local-term-fill", "all-below-guard"])
+def test_split_xy_weak_reference_fill_stays_with_its_job_and_term(all_weak):
+    class GuardedIdeal(_XYIdeal):
+        def sx_ideal0(self, probe, term=None):
+            ref = super().sx_ideal0(probe, term)
+            # Otherwise one weak and two strong reference bonds for each
+            # term in each setting: local medians then differ by job.
+            ref[slice(None) if all_weak else slice(0, 2)] = A.KAP_GUARD / 2
+            return ref
+
+    ideal = GuardedIdeal("j0")
+    jobs = [_xy_cached_job("A", "XYA"), _xy_cached_job("B", "XYB")]
+    observed, expected_kap = [], []
+    for job, setting, damping, signal in zip(jobs, ("XYA", "XYB"),
+                                            ((0.35, 0.55), (0.85, 0.70)), (0.16, 0.06)):
+        p = job.est(CP.pub_name("j0", 0.5, False, setting), setting)
+        m = job.est(CP.pub_name("j0", 0.5, True, setting), setting)
+        kap = np.where(p["term"] == 1, damping[0], damping[1])
+        ref = np.where(p["term"] == 1, ideal.sx_ideal0("J1", 1), ideal.sx_ideal0("J1", 2))
+        p["xT"] = p["sx"] = kap * signal
+        m["xT"] = m["sx"] = kap * ref
+        # At weak-reference sites even a large measured mirror value must
+        # not be divided by a near-zero ideal reference.
+        m["xT"][np.abs(ref) <= A.KAP_GUARD] = 0.9
+        m["xT_err"] = m["sxe"] = np.full(NS, 0.006)
+        observed.append(p["xT"])
+        expected_kap.append(np.ones(NS) if all_weak else kap)
+    got = A.component_slice("10", 0.5, jobs, {"j0": ideal}, jobs[0].lat, CENTER, wing=False)
+    assert got is not None
+    even = np.arange(NS) % 2 == 0
+    np.testing.assert_allclose(got["kappa1_v"][0], np.where(even, expected_kap[0], expected_kap[1]))
+    np.testing.assert_allclose(got["kappa2_v"][0], np.where(even, expected_kap[1], expected_kap[0]))
+    coeff = A.FAMILY_COEFF["j0"] * jobs[0].eta / 4
+    expected = coeff * np.where(even, 1.0, -1.0) * (observed[0] / expected_kap[0]
+                                                    - observed[1] / expected_kap[1])
+    np.testing.assert_allclose(got["C_cal"][0], expected, atol=1e-15)
+    assert np.isfinite(got["C_err"]).all()
+    if all_weak:
+        # The established guard falls back to kappa=1, with relative mirror
+        # error median(sigma_m)/KAP_GUARD, when no reference bond is usable.
+        kerr = 0.006 / A.KAP_GUARD
+        expected_err = abs(coeff) * np.sqrt(2 * 0.02 ** 2
+                                           + kerr ** 2 * (observed[0] ** 2 + observed[1] ** 2))
+        np.testing.assert_allclose(got["C_err"][0], expected_err, rtol=1e-12)
+
+
+def test_split_xy_missing_mirror_cannot_borrow_from_another_job():
+    a = _xy_cached_job("A", "XYA", kappa=0.35)
+    b = _xy_cached_job("B", "XYB", kappa=0.85, mirror=False)
+    mirror_only = _xy_cached_job("unrelated-B-mirror", "XYB", kappa=0.2, families=())
+    got = A.component_slice("10", 0.5, [a, b, mirror_only], {"j0": _XYIdeal("j0")},
+                            a.lat, CENTER, wing=False)
+    assert got is None
+
+
+def test_split_xy_incomplete_insertion_families_are_reported():
+    """Present but unusable pubs must not vanish without a diagnostic."""
+    jobs = [_xy_cached_job(f"{setting}-{family}", setting, families=(family,))
+            for setting in ("XYA", "XYB") for family in ("j1p1", "j1p2")]
+    ideals = {f: _XYIdeal(f) for f in ("j0", "j1p1", "j1p2")}
+    messages = []
+    got = A.component_slice("11", 0.5, jobs, ideals, jobs[0].lat, CENTER,
+                            wing=False, log=messages.append)
+    assert got is None
+    assert any("j1p1+j1p2" in msg and "XYA/XYB" in msg and "incomplete" in msg
+               and "t=0.5" in msg and "dt=0.5" in msg for msg in messages), messages
+
+
+def test_split_xy_repeated_setting_does_not_double_count_its_partner():
+    """Two independent A samples improve only A's error, not the single B."""
+    a1 = _xy_cached_job("A-1", "XYA", signal=0.16)
+    a2 = _xy_cached_job("A-2", "XYA", signal=0.16)
+    b = _xy_cached_job("B", "XYB", signal=0.06)
+    got = A.component_slice("10", 0.5, [a1, a2, b], {"j0": _XYIdeal("j0")},
+                            a1.lat, CENTER, wing=False)
+    assert got is not None
+    prefactor = abs(A.FAMILY_COEFF["j0"] * a1.eta / 4)
+    expected_error = prefactor * np.sqrt(0.02 ** 2 / 2 + 0.02 ** 2)
+    np.testing.assert_allclose(got["C_err"], expected_error, rtol=1e-12)
+    assert set(got["merged_jobs"].tolist()) == {"A-1", "A-2", "B"}
+    assert len(got["merged_jobs"]) == 3
+
+
+def test_split_xy_does_not_join_different_evolution_steps():
+    a = _xy_cached_job("A-dt05", "XYA", dt=0.5)
+    b = _xy_cached_job("B-dt025", "XYB", dt=0.25)
+    for dt in (0.5, 0.25):
+        got = A.component_slice("10", 0.5, [a, b], {"j0": _XYIdeal("j0")},
+                                a.lat, CENTER, wing=False, dt=dt)
+        assert got is None
+
+
+def test_split_xy_does_not_reuse_a_complete_jobs_setting():
+    a = _xy_cached_job("A", "XYA", signal=0.16)
+    b = _xy_cached_job("B", "XYB", signal=0.06)
+    complete = A.JobBits({**a.bits, **b.bits}, a.lat, "complete", eta=a.eta)
+    complete._cache = {**a._cache, **b._cache}
+    extra_a = _xy_cached_job("extra-A", "XYA", signal=0.24)
+    kwargs = dict(ideals={"j0": _XYIdeal("j0")}, lat=a.lat, center=CENTER, wing=False)
+    ref = A.component_slice("10", 0.5, [complete], **kwargs)
+    got = A.component_slice("10", 0.5, [complete, extra_a], **kwargs)
+    for field in ("C", "C_cal", "C_err", "kappa_v", "one_pt", "nshot"):
+        np.testing.assert_allclose(got[field], ref[field], rtol=1e-12, atol=1e-12)
+    assert got["merged_jobs"].tolist() == ["complete"]
+
+
 def test_dither_family_uses_its_own_ideal_grid(tmp_path):
     """The j0d (dither) pubs must be assembled against the j0d ideal grid --
     its insertion sits on the ODD site CENTER+1, so id_a = -1/2 and A0 is its

@@ -294,6 +294,22 @@ kappa is never applied to a J1 probe; the regression test
 the Z readout and 0.60 on the XY readouts and requires each component to
 recover its own value to 0.05 and to differ from the other by more than 0.15.
 
+XYA and XYB may be submitted in separate jobs. For components 10 and 11,
+the reducer calibrates each setting with the matching mirror from its own
+job, averages repeated measurements of that setting, then adds the two
+signed contributions and their independent variances. It matches the time,
+evolution step and ancilla basis within the selected card. A job already
+used for a complete component is not reused as a partial measurement.
+Missing mirrors or incomplete setting coverage are reported in the log.
+
+For split readouts, weak-reference median filling is restricted to the
+same job, setting and Pauli term. Complete jobs retain the original
+per-term filling across both settings, so weak-site estimates need not
+be identical under different job packaging. Slice files record all
+`merged_jobs` plus `split_readout_jobs` and `split_readout_calibration` when
+settings were combined across jobs. As before, `nshot` counts effective
+paired shots for J1 probes, rather than the sum of both settings' shots.
+
 Corollary for the manifest: a slice that carries J1 physics pubs must carry
 mirrors in all three readouts (the default), and `--j1-mirrors` additionally
 gives the j1p1 family its own mirror so the insertion-dependent part of the
