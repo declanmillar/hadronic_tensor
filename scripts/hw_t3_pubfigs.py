@@ -117,14 +117,6 @@ def draw_cloud(a, matched=False):
                 fontsize=9.5 if matched else 8.5)
 
 
-from matplotlib.colors import LinearSegmentedColormap
-# diverging map built from the Okabe-Ito palette used everywhere else:
-# vermillion (negative) -> white -> blue (positive, matches the "Blues"
-# sequential maps of the vacuum/packet heatmaps)
-OI_DIV = LinearSegmentedColormap.from_list(
-    "oi_div", ["#D55E00", "#FFFFFF", "#0072B2"])
-
-
 def draw_heat(ax, W, ttl, vmax, ylab=True):
     pm = ax.pcolormesh(w["q0"], w["q1"], W.T, cmap=OI_DIV,
                        vmin=-vmax, vmax=vmax, shading="nearest")

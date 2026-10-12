@@ -12,6 +12,7 @@ Usage in a figure script (replaces any local rcParams block):
 """
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -26,6 +27,9 @@ plt.rcParams.update({
 # Okabe-Ito, in the paper's order
 OI = ["#0072B2", "#D55E00", "#009E73", "#E69F00", "#56B4E9", "#CC79A7",
       "#000000"]
+# Signed tensor heatmaps: vermillion (negative), white, blue (positive).
+OI_DIV = LinearSegmentedColormap.from_list(
+    "oi_div", [OI[1], "#FFFFFF", OI[0]])
 PALE = ["#80B9D9", "#EAAF80"]          # 50%-white OI[0], OI[1]
 # marker cycle for per-volume series (B/W-distinguishable)
 MARKERS = ["o", "s", "D", "^", "v", "P", "X"]
