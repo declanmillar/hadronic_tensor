@@ -293,8 +293,7 @@ def cmd_submit(args):
         recs = CP.submit(mode, pubs, info, shots, jobs, lat, emb, args.basis, args.out, service,
                          args.guard, tag=args.tag, log=log, est_seconds=est_s,
                          strict_guard=not args.no_strict_guard, batch=not args.no_batch,
-                         job_offset=(args.only_jobs[0] if args.only_jobs else 0),
-                         estimate_wait=args.estimate_wait)
+                         estimate_wait=args.estimate_wait, job_indices=args.only_jobs)
     except CP.BudgetError as e:
         raise SystemExit(f"budget guard: {e}")
     if not args.real and args.fetch:

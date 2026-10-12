@@ -336,6 +336,8 @@ If the estimate is still missing at the deadline, strict mode cancels the job an
 still refusing explicit over-budget values.
 
 If the per-job guard cancels a job, the loop stops and records the cancelled job's metadata.
+The printed `--only-jobs` selection includes that cancelled job and every unsubmitted job,
+preserving the original campaign indices even when resuming a nonconsecutive selection.
 The job ID is saved before polling. If cancellation fails (for example, because the job finished
 while the guard waited), submission stops and records the error with `cancelled: null`; check
 that job's status before retrying it.

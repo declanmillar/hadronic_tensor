@@ -625,7 +625,8 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
            emb: T.Embedding, basis: str, out_dir: str = "data/hw", service=None, guard: float = 0.85,
            tag: str = "", log=None, est_seconds: float | None = None, strict_guard: bool = True,
            batch: bool = True, job_offset: int = 0,
-           estimate_wait: float = ESTIMATE_WAIT_SECONDS) -> list[dict]:
+           estimate_wait: float = ESTIMATE_WAIT_SECONDS,
+           job_indices: list[int] | None = None) -> list[dict]:
     """Submit one SamplerV2 job per name list; write data/hw/htq_job_<id>.json.
     ``mode`` is a real backend (from QiskitRuntimeService) or a fake backend /
     AerSimulator for local testing mode.
@@ -639,10 +640,14 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
     the rest of the allocation nor loses the ids of what it did spend.
 
     Strict submission waits for pending job estimates before cancelling.
+    ``job_indices`` preserves campaign indices when resuming a sparse selection.
 
     -> [{'job': job, 'meta': dict, 'path': str}] for the jobs kept."""
     if not np.isfinite(estimate_wait) or estimate_wait < 0:
         raise ValueError("estimate_wait must be finite and non-negative")
+    indices = list(range(job_offset, job_offset + len(jobs))) if job_indices is None else list(job_indices)
+    if len(indices) != len(jobs):
+        raise ValueError("job_indices must have one entry per job")
     os.makedirs(out_dir, exist_ok=True)
     fractional = basis == "rzz"
     real = T.is_real_backend(mode)
@@ -666,12 +671,12 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
         for k, names in enumerate(jobs):
             job = smp.run([(pubs[n], None, int(shots[n])) for n in names])
             jid = job.job_id()
-            T._log(f"job {k + job_offset}: {jid} with {len(names)} pubs {names}", log)
+            T._log(f"job {indices[k]}: {jid} with {len(names)} pubs {names}", log)
             meta = {"job_id": jid, "backend": T.backend_label(mode) if hasattr(mode, "name") else str(mode),
                     "htq_hw": __version__, "tag": tag, "basis": basis, "ns": lat.ns, "center": emb.center,
                     "n_logical": lat.n_wires, "embedding": emb.kind, "initial_layout": emb.layout,
                     "pub_names": names, "shots": {n: int(shots[n]) for n in names},
-                    "pubs": {n: info[n] for n in names}, "job_index": k + job_offset,
+                    "pubs": {n: info[n] for n in names}, "job_index": indices[k],
                     "options": {"twirling_gates": not fractional, "twirling_measure": True, "dd": "XY4"},
                     "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
             path = os.path.join(out_dir, f"htq_job_{jid}.json")
@@ -694,15 +699,14 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
             with open(path, "w") as f:                      # written either way: never lose an id
                 json.dump(meta, f, indent=1)
             if stop:
-                cancelled = (k + job_offset, state)
+                cancelled = (k, state)
                 break
             records.append({"job": job, "meta": meta, "path": path})
     if cancelled is not None:
         k, state = cancelled
-        left = len(jobs) - (k - job_offset) - 1
-        T._log(f"STOPPED at job {k} ({state}); {left} job(s) not submitted. Resume with "
-               f"--only-jobs {' '.join(str(k + job_offset + 1 + i) for i in range(min(left, 8)))}"
-               + (" ..." if left > 8 else ""), log)
+        left = len(jobs) - k - 1
+        T._log(f"STOPPED at job {indices[k]} ({state}); {left} job(s) not submitted. "
+               f"Retry the cancelled job too: --only-jobs {' '.join(map(str, indices[k:]))}", log)
     return records
 
 

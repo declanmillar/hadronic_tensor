@@ -335,10 +335,16 @@ def test_real_submission_refuses_an_unfittable_campaign_before_job_zero(tmp_path
     assert not list(tmp_path.glob("htq_job_*.json"))
 
 
-def test_guard_stops_the_loop_and_still_records_the_cancelled_job(tmp_path, monkeypatch):
+@pytest.mark.parametrize("selection,indices", [
+    ({}, [0, 1, 2]),
+    ({"job_offset": 7}, [7, 8, 9]),
+    ({"job_indices": [7, 9, 12]}, [7, 9, 12]),
+])
+def test_guard_stops_the_loop_and_still_records_the_cancelled_job(tmp_path, monkeypatch,
+                                                                  selection, indices):
     """The failure this exists for: job 0 is cancelled over budget and the
     other 111 are submitted anyway, with no record of the id that was spent."""
-    sent = []
+    sent, messages = [], []
 
     class _Sampler:
         def run(self, pubs):
@@ -348,12 +354,14 @@ def test_guard_stops_the_loop_and_still_records_the_cancelled_job(tmp_path, monk
     monkeypatch.setattr(T, "is_real_backend", lambda be: True)
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     recs = CP.submit("dev", service=_StubService(10800.0), est_seconds=10.0, batch=False,
-                     log=None, **_submit_args(tmp_path))
+                     log=messages.append, **selection, **_submit_args(tmp_path))
     assert recs == [] and len(sent) == 1                      # stopped, did not send the rest
     metas = sorted(tmp_path.glob("htq_job_*.json"))
     assert len(metas) == 1
     m = json.load(open(metas[0]))
     assert m["cancelled"] is True and m["guard"] == CP.GUARD_OVER and m["job_id"] == "stub-0"
+    assert m["job_index"] == indices[0]
+    assert messages[-1].endswith("--only-jobs " + " ".join(map(str, indices)))
 
 
 def test_strict_submission_continues_once_estimates_arrive(tmp_path, monkeypatch, estimate_clock):
@@ -368,18 +376,19 @@ def test_strict_submission_continues_once_estimates_arrive(tmp_path, monkeypatch
     monkeypatch.setattr(T, "is_real_backend", lambda be: True)
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     recs = CP.submit("dev", service=_RefreshingService(10800.0, [100.0] * 3),
-                     est_seconds=10.0, batch=False,
+                     est_seconds=10.0, batch=False, job_indices=[7, 9, 12],
                      **_submit_args(tmp_path))
     assert len(recs) == 3 and not any(job.cancelled for job in sent)
-    assert [r["meta"]["job_index"] for r in recs] == [0, 1, 2]
+    assert [r["meta"]["job_index"] for r in recs] == [7, 9, 12]
     assert all(r["meta"]["guard"] == CP.GUARD_OK for r in recs)
     assert estimate_clock.sleeps == [5.0] * 3
 
 
 @pytest.mark.parametrize("stop_at", [0, 1])
-def test_strict_submission_timeout_records_cancelled_job(
+def test_strict_submission_timeout_records_cancelled_job_and_exact_resume(
         tmp_path, monkeypatch, estimate_clock, stop_at):
     sent, messages = [], []
+    indices = [7, 9, 12]
 
     class _Sampler:
         def run(self, pubs):
@@ -391,14 +400,15 @@ def test_strict_submission_timeout_records_cancelled_job(
     monkeypatch.setattr(T, "is_real_backend", lambda be: True)
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     recs = CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
-                     batch=False, log=messages.append,
+                     batch=False, job_indices=indices, log=messages.append,
                      **_submit_args(tmp_path))
     assert len(recs) == stop_at and len(sent) == stop_at + 1
     assert estimate_clock.elapsed == 60.0 and sent[-1].cancelled is True
     meta = json.loads((tmp_path / f"htq_job_pending-{stop_at}.json").read_text())
-    assert meta["job_index"] == stop_at
+    assert meta["job_index"] == indices[stop_at]
     assert meta["job_id"] == sent[-1].job_id()
     assert meta["cancelled"] is True and meta["guard"] == CP.GUARD_UNVERIFIABLE
+    assert messages[-1].endswith("--only-jobs " + " ".join(map(str, indices[stop_at:])))
 
 
 def test_submission_persists_job_id_before_interruptible_wait(tmp_path, monkeypatch, estimate_clock):
@@ -494,10 +504,10 @@ def test_local_submission_needs_no_allocation_and_keeps_every_job(tmp_path, monk
     (["--estimate-wait", "0"], 0.0),
     (["--estimate-wait", "17.5"], 17.5),
 ])
-def test_submit_cli_forwards_estimate_wait(monkeypatch, wait_args, wait):
+def test_submit_cli_forwards_estimate_wait_and_sparse_job_indices(monkeypatch, wait_args, wait):
     from htq_hw import __main__ as cli
 
-    names = [f"p{i}" for i in range(3)]
+    names = [f"p{i}" for i in range(13)]
     calls = []
 
     def submit(*args, **kwargs):
@@ -513,10 +523,11 @@ def test_submit_cli_forwards_estimate_wait(monkeypatch, wait_args, wait):
     monkeypatch.setattr(T, "backend_label", lambda be: "fake")
     monkeypatch.setattr(CP, "submit", submit)
 
-    cli.main(["submit", *wait_args])
+    cli.main(["submit", "--only-jobs", "7", "9", "12", *wait_args])
     assert len(calls) == 1
     args, kwargs = calls[0]
-    assert args[4] == [["p0"], ["p1"], ["p2"]]
+    assert args[4] == [["p7"], ["p9"], ["p12"]]
+    assert kwargs["job_indices"] == [7, 9, 12]
     assert kwargs["estimate_wait"] == wait and kwargs["strict_guard"] is True
 
 
