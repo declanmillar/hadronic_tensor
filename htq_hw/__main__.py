@@ -386,6 +386,7 @@ def cmd_acceptance(args):
                  require_real=args.require_real, cache_dir=args.cache, threads=args.threads,
                  budget=args.budget, rep_time=args.rep_time, tol=args.tol, times=args.times,
                  wing_surrogate=args.wing_surrogate, rehearse_shots=args.accept_shots,
+                 qpdf_shots=args.qpdf_shots, vac_shot_factor=args.vac_shot_factor,
                  kappa_tol=args.kappa_tol, refs=args.refs,
                  keep_rehearsal=args.keep_rehearsal, log=log)
     path = R.write_record(args.record, "acceptance", rec, rec["status"])
@@ -620,7 +621,15 @@ def main(argv=None):
     ac.add_argument("--cache", default=str(pathlib.Path.home() / ".cache" / "htq_hw"),
                     help="qpy / prep-MPS cache ('' disables); the full level needs it")
     ac.add_argument("--threads", type=int, default=2)
-    ac.add_argument("--accept-shots", type=int, default=16000,
+    ac.add_argument("--qpdf-shots", type=int, default=4000,
+                    help="rehearsal shots for quasi-PDF pubs, 68%% of the pub count and unrelated "
+                         "to the tightest check; raising them makes a known systematic's pull grow "
+                         "as sqrt(N) and eventually trip the gate")
+    ac.add_argument("--vac-shot-factor", type=int, default=2,
+                    help="multiplier on --qpdf-shots for vacuum cards: one vacuum sample is "
+                         "subtracted from all three width cards of its coupling, so its fluctuation "
+                         "lands in all three pulls identically")
+    ac.add_argument("--accept-shots", type=int, default=8000,
                     help="shots per pub in the level=full rehearsal (statistics, not physics). "
                          "Costs no QPU: this is the local Aer rehearsal, not the device plan. "
                          "4000 leaves the J1 kappa estimator shot-limited at |kappa-1| ~ 0.19 "

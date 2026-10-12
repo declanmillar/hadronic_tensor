@@ -174,3 +174,26 @@ def test_record_summary_outside_a_git_checkout(scratch):
     rec["git"] = {"commit": None, "tag": None, "dirty": False}
     txt = R.summarize(rec)
     assert "no git checkout" in txt and "acceptance: PASS" in txt
+
+
+def test_rehearsal_shots_are_tiered():
+    """Cost is linear in shots and 68% of the rehearsal is quasi-PDF pubs that
+    have nothing to do with the tightest check, so they do not get the slice
+    pubs' budget. Vacuum qpdf cards get more than the width cards because one
+    vacuum sample is subtracted from all three of its coupling's width cards."""
+    from htq_hw import campaign as CP
+    specs = CP.compose_presets(["relA-core", "prod-bridge", "vac-w00", "qpdf-scan"])
+    sub = [s for s in specs if any(abs(s.t - x) < 1e-9 for x in AC._rehearse_times(specs))]
+    shots = {s.name: AC._rehearse_shots_for(s, 8000, 4000, 2) for s in sub}
+    by = {}
+    for s in sub:
+        kind = "qpdf_vac" if (s.family == "qpdf" and "_vac" in s.card) else \
+               ("qpdf" if s.family == "qpdf" else "slice")
+        by.setdefault(kind, set()).add(shots[s.name])
+    assert by["slice"] == {8000}
+    assert by["qpdf"] == {4000}
+    assert by["qpdf_vac"] == {8000}
+    # the whole point: cheaper than a flat high setting, dearer than a flat low one
+    total = sum(shots.values())
+    assert total < len(sub) * 16000 * 0.5
+    assert total > len(sub) * 4000
