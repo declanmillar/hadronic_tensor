@@ -8,6 +8,9 @@ wavepacket hadronic tensor.
 
 Run from repo root:
   PYTHONPATH=. .venv/bin/python scripts/run_w00_vacuum_ns50.py
+
+New output defaults to data/mps/runs/vacuum/<UTC timestamp>/.
+An optional positional output file must not already exist.
 """
 
 import sys
@@ -17,6 +20,7 @@ import numpy as np
 
 from htensor import Z2Lattice, stateprep, backends
 from htensor import currents as cur
+from run_outputs import output_directory, output_file
 
 M0, G2, ETA = 0.7, 1.1, 1.3
 NS = 50
@@ -24,7 +28,9 @@ TIMES = np.arange(0.0, 6.01, 0.5)
 DT_TARGET = 0.1
 TRUNC = 1e-8
 
-out_path = sys.argv[1] if len(sys.argv) > 1 else "data/w00_vac_ns50.npz"
+out_path = output_file(sys.argv[1] if len(sys.argv) > 1 else
+                       output_directory("vacuum", kind="mps") / "w00_vac_ns50.npz")
+print(f"output: {out_path}", flush=True)
 
 t0 = time.time()
 lat6 = Z2Lattice(6, pbc=True)

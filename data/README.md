@@ -40,8 +40,43 @@ paper figures rendered from exactly these arrays.
 
 ## Layout
 
-Everything in `data/` is a published result: the arrays the paper cites and the
-figures rendered from them. Hardware runs are in `data/hw/` (see its README).
+The tracked files directly in `data/` are historical result arrays and
+figures. New run directories are not automatically part of that release.
+Hardware runs are in `data/hw/` (see its README).
+
+### New MPS runs
+
+MPS production and analysis outputs default to
+`data/mps/runs/<label>/<UTC timestamp>/`. The timestamp records run creation.
+Repeated runs get different directories, including when the physics
+parameters are unchanged. Preparation caches remain in `data/work/prep/`.
+
+This convention applies to `run_w_ns.py`, `run_w_meson_ns50.py`,
+`run_w_j1_ns50.py`, `run_w00_vacuum_ns50.py`, `analyze_w_tensor.py`,
+`analyze_w_meson.py`, `plot_w00_vacuum.py` and `qpdf_card_refs.py`.
+Legacy diagnostic scripts outside this list may still use fixed paths.
+
+Existing explicit output arguments are supported, but refuse to overwrite
+previous outputs. `analyze_w_meson.py` and `plot_w00_vacuum.py` accept
+`--out PREFIX`; `qpdf_card_refs.py` accepts `--out-dir DIRECTORY`.
+Production output filenames must end in `.npz`.
+
+`run_w_ns.py` continues to save progress after each time slice. To resume,
+repeat the original arguments with `--resume --out PATH/TO/checkpoint.npz`.
+The file must exist, and its time grid, recorded physics parameters,
+insertion, probe selection and array dimensions must match. A bare
+`--resume` no longer guesses which prior run to continue.
+
+Pass generated grids explicitly to the analysis, for example:
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/analyze_w_tensor.py \
+  path/to/j0.npz path/to/j1.npz --parity --label prodR
+```
+
+This creates a separate analysis directory and leaves both input grids
+untouched. Programs that default to historical reference files continue
+to read those files; a new run does not silently replace a reference.
 
 `data/work/` is **working state, not results**, and is not released: preparation
 MPS caches (`prep/`), the κ trajectory ensemble (`kappa16/`), long-run

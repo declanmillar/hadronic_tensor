@@ -4,8 +4,10 @@ the lattice Ward / symmetry residual table and a paper-style figure.
   PYTHONPATH=. .venv/bin/python scripts/analyze_w_tensor.py \
       data/w_meson_ns50_k1.26_v3.npz data/w_meson_j1_ns50_k1.26.npz
 
-Writes data/w_tensor_ns{ns}_k{k0:.2f}_W.npz (W_00 .. W_11, spread_*, q0, q1)
-and data/w_tensor_ns{ns}_k{k0:.2f}.pdf.  Conventions: htensor/tensor.py.
+Writes w_tensor_ns{ns}_k{k0:.2f}_W.npz and figures in a new directory under
+data/mps/runs/<label>/<UTC timestamp>/. An optional positional output prefix
+selects another location; existing outputs are never overwritten.
+Conventions: htensor/tensor.py.
 
 Pass --parity to plot the even and odd parts under q1 -> -q1 in the hardware
 publication style, with q0 horizontal and one colour scale per component.
@@ -18,7 +20,6 @@ projected before forming the envelope. Arrays are saved in the output NPZ.
 import argparse
 import os
 import sys
-from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -28,6 +29,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_style import OI, OI_DIV  # noqa: E402
 from htensor import asymmetry, tensor  # noqa: E402
+from run_outputs import check_output_prefix, output_directory  # noqa: E402
 
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 p.add_argument("j0", help="MPS production grid with J0 insertion")
@@ -45,11 +47,13 @@ if not (np.isfinite(args.q0_range).all() and args.q0_range[0] < args.q0_range[1]
 if not np.isfinite(args.cut_q1).all():
     p.error("--cut-q1 requires finite momenta")
 path_j0, path_j1, out_tag = args.j0, args.j1, args.out_tag
+if out_tag:
+    out_tag = check_output_prefix(out_tag)
 
 g = tensor.load_mps_components(path_j0, path_j1)
 lat, k0 = g.lat, g.k0
-tag = out_tag or f"data/w_tensor_ns{lat.ns}_k{k0:.2f}"
-Path(tag).parent.mkdir(parents=True, exist_ok=True)
+tag = out_tag or check_output_prefix(output_directory(args.label or "tensor", kind="mps")
+                                     / f"w_tensor_ns{lat.ns}_k{k0:.2f}")
 
 q0 = np.arange(-1.0, 6.001, 0.04)
 ks = np.arange(-(lat.nx // 2), lat.nx // 2 + 1)

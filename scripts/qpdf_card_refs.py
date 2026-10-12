@@ -8,7 +8,8 @@ normalize-then-moment on x in [-0.5, 1.5], h(0) = connected <J0(centre)>),
 and the sigma_k^2 extrapolation of <x> (the plane-wave intercept).
 
   PYTHONPATH=. .venv/bin/python scripts/qpdf_card_refs.py
-  -> data/qpdf_card_refs.npz, data/qpdf_width_scan.pdf
+  -> qpdf_card_refs.npz and qpdf_width_scan.pdf in a new directory under
+     data/mps/runs/qpdf/<UTC timestamp>/ (or --out-dir).
 """
 
 import os
@@ -28,6 +29,7 @@ from paper_style import OI  # noqa: E402
 from htensor import Z2Lattice, backends, quasipdf  # noqa: E402
 from htensor import currents as cur  # noqa: E402
 import argparse  # noqa: E402
+from run_outputs import check_output_prefix, output_directory  # noqa: E402
 
 CARDS = [  # tag, couplings, vac file, params file
     ("prod", (0.7, 1.1, 1.3), "data/vac_prod.npz", "data/wp10reg_params_k1.26_L3.npz"),
@@ -38,11 +40,20 @@ CARDS = [  # tag, couplings, vac file, params file
     ("relA", (0.4, 1.4, 2.3), "data/vac_relA.npz", "data/wp_relA_k+1.26_s1.50_L4_v2.npz"),
 ]
 NS, CENTER = 50, 24
-MMAX = int(sys.argv[1]) if len(sys.argv) > 1 else 5      # paper convention: m <= 5 (|z| <= 10)
-SIG_M = float(sys.argv[2]) if len(sys.argv) > 2 else 5.0  # paper convention: sigma_m = 5
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("mmax", nargs="?", type=int, default=None)
+p.add_argument("sig_m", nargs="?", type=float, default=5.0)
+p.add_argument("--out-dir", help="output directory (default: a new dated MPS run)")
+args = p.parse_args()
+MMAX = args.mmax if args.mmax is not None else 5
+SIG_M = args.sig_m
 MS = np.arange(1, MMAX + 1)     # spatial separations m -> z = +-2m (seam-free for m <= 10 around site 24)
 XS = np.linspace(-0.5, 1.5, 401)
-TAG = f"_m{MMAX}_s{SIG_M:g}" if len(sys.argv) > 1 else ""
+TAG = f"_m{MMAX}_s{SIG_M:g}" if args.mmax is not None else ""
+out_dir = output_directory("qpdf", args.out_dir, kind="mps")
+for name in ("qpdf_card_refs", "qpdf_width_scan"):
+    check_output_prefix(out_dir / (name + TAG))
+print(f"output directory: {out_dir}", flush=True)
 
 
 def with_anc(op, ap="I"):
@@ -124,8 +135,8 @@ ax.set_xlabel(r"$\sigma_k^2$")
 ax.set_ylabel(r"$\langle x\rangle$ (measured convention)")
 ax.set_title("quasi-PDF width scan, classical references (Ns=50 preps)", fontsize=10)
 ax.legend(fontsize=8.5)
-fig.savefig(f"data/qpdf_width_scan{TAG}.pdf", dpi=200)
-np.savez(f"data/qpdf_card_refs{TAG}.npz", xs=XS, ms=rows[0]["ms"],
+fig.savefig(out_dir / f"qpdf_width_scan{TAG}.pdf", dpi=200)
+np.savez(out_dir / f"qpdf_card_refs{TAG}.npz", xs=XS, ms=rows[0]["ms"],
          **{f"{q['tag']}_s{q['sigma_x']:.2f}_{k}": np.asarray(q[k]) for q in rows for k in ("h", "qt", "x", "norm", "H", "k0", "sigma_k")},
          **{f"fit_{t}": c for t, c in fits.items()})
-print(f"wrote data/qpdf_card_refs{TAG}.npz data/qpdf_width_scan{TAG}.pdf")
+print(f"wrote {out_dir / f'qpdf_card_refs{TAG}.npz'} {out_dir / f'qpdf_width_scan{TAG}.pdf'}")

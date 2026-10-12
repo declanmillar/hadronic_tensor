@@ -8,6 +8,9 @@ pointwise vacuum subtraction, and <H> is saved on both preps so the packet
 energy E(k0) is certified at the production volume.
 
   PYTHONPATH=. .venv/bin/python scripts/run_w_meson_ns50.py [k0] [out.npz]
+
+New output defaults to data/mps/runs/meson/<UTC timestamp>/.
+An explicit output file must not already exist.
 """
 
 import os
@@ -21,6 +24,7 @@ from htensor import Z2Lattice, stateprep, spectroscopy, wavepacket, \
     block_engine, backends
 from htensor import currents as cur
 from htensor import hamiltonian as ham
+from run_outputs import output_directory, output_file
 
 M0, G2, ETA = 0.7, 1.1, 1.3
 NS = 50
@@ -29,7 +33,9 @@ TIMES = np.arange(0.0, 8.01, 0.5)
 DT_TARGET = 0.1
 TRUNC = 1e-8
 K0 = float(sys.argv[1]) if len(sys.argv) > 1 else 0.0
-OUT = sys.argv[2] if len(sys.argv) > 2 else f"data/w_meson_ns50_k{K0:.2f}.npz"
+OUT = output_file(sys.argv[2] if len(sys.argv) > 2 else
+                  output_directory("meson", kind="mps") / f"w_meson_ns50_k{K0:.2f}.npz")
+print(f"output: {OUT}", flush=True)
 
 t0 = time.time()
 

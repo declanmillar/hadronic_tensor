@@ -6,8 +6,13 @@ gauge-post-selection cloud panel folded in.  Emits three PNGs/PDFs:
   hw_t3_figB      : TWO-figure option, part 2 -- assembled W00 tensor
 
   PYTHONPATH=. .venv/bin/python scripts/hw_t3_pubfigs.py
+
+Outputs default to data/hw/runs/kingston/<UTC analysis timestamp>/.
+Use --tensor to select a regenerated coarse tensor and --out-dir to choose
+an output directory. The default tensor is the archived Kingston result.
 """
 
+import argparse
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -17,6 +22,16 @@ from paper_style import *  # usetex + OI palette + dev()
 import numpy as np
 
 from htensor import Z2Lattice
+from run_outputs import check_output_prefix, output_directory
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("--tensor", default="data/hw_w00_coarse_t3.npz",
+               help="coarse Kingston tensor NPZ (default: archived result)")
+p.add_argument("--out-dir", help="output directory (default: a dated Kingston run)")
+args = p.parse_args()
+out_dir = output_directory("kingston", args.out_dir)
+for name in ("hw_t3_combined", "hw_t3_figA", "hw_t3_figB", "hw_cloud"):
+    check_output_prefix(out_dir / name)
 
 K0TAG = "k1.26"
 NS, CENTER = 50, 24
@@ -26,7 +41,7 @@ JOBS = [("data/hw/job_tier3k_T05MERGED.npz", 0.5, "277k"),
         ("data/hw/job_tier3d_BFIX.npz", 2.0, "120k")]
 idl = np.load(f"data/hw_t3_ideal50_{K0TAG}.npz")
 tru = np.load(f"data/w_meson_ns50_{K0TAG}_v3.npz")
-w = np.load("data/hw_w00_coarse_t3.npz")
+w = np.load(args.tensor)
 x = np.arange(NS) - CENTER
 sq = np.array([lat.site_qubit(v) for v in range(NS)])
 sgn = np.array([(-1) ** v for v in range(NS)])
@@ -167,8 +182,8 @@ axc = fig.add_subplot(gs[1, 8:12])
 draw_cuts(axc)
 fig.suptitle(r"$W^{00}$ on 101 qubits: mirror-calibrated integrand slices "
              r"(top); assembled tensor, $t\leq2$ (bottom)", fontsize=9.5)
-fig.savefig("data/hw_t3_combined.pdf", dpi=200)
-fig.savefig("data/hw_t3_combined.png", dpi=200)
+fig.savefig(out_dir / "hw_t3_combined.pdf", dpi=200)
+fig.savefig(out_dir / "hw_t3_combined.png", dpi=200)
 
 # ============ Candidate 2A: slices only (1x3) ============
 figA, axA = plt.subplots(1, 3, figsize=(9.0, 3.2), constrained_layout=True,
@@ -180,14 +195,14 @@ for i, (path, T, sh) in enumerate(JOBS):
         slice_legend(axA[i])
 figA.suptitle(r"$W^{00}$ integrand on 101 qubits (ibm_kingston): "
               r"mirror-calibrated Hadamard-test slices", fontsize=10)
-figA.savefig("data/hw_t3_figA.pdf", dpi=200)
-figA.savefig("data/hw_t3_figA.png", dpi=200)
+figA.savefig(out_dir / "hw_t3_figA.pdf", dpi=200)
+figA.savefig(out_dir / "hw_t3_figA.png", dpi=200)
 
 # ============ standalone: gauge-PS cloud, format-matched ============
 figC, axCl = plt.subplots(figsize=(5.0, 3.4), constrained_layout=True)
 draw_cloud(axCl, matched=True)
-figC.savefig("data/hw_cloud.pdf", dpi=200)
-figC.savefig("data/hw_cloud.png", dpi=200)
+figC.savefig(out_dir / "hw_cloud.pdf", dpi=200)
+figC.savefig(out_dir / "hw_cloud.png", dpi=200)
 
 # ============ Candidate 2B: assembled tensor + odd projection ============
 odd = lambda W: 0.5 * (W - W[:, ::-1])
@@ -233,8 +248,8 @@ for a_ in (b1, b2, b3, b4):
     a_.apply_aspect()
 p1, p3, pc = b1.get_position(), b3.get_position(), bc.get_position()
 bc.set_position([pc.x0, p3.y0, pc.width, p1.y1 - p3.y0])
-figB.savefig("data/hw_t3_figB.pdf", dpi=200,
+figB.savefig(out_dir / "hw_t3_figB.pdf", dpi=200,
              bbox_inches="tight", pad_inches=0.03)
-figB.savefig("data/hw_t3_figB.png", dpi=200,
+figB.savefig(out_dir / "hw_t3_figB.png", dpi=200,
              bbox_inches="tight", pad_inches=0.03)
-print("wrote hw_t3_combined, hw_t3_figA, hw_t3_figB (.pdf/.png)")
+print(f"wrote hw_t3_combined, hw_t3_figA, hw_t3_figB, hw_cloud (.pdf/.png) in {out_dir}")

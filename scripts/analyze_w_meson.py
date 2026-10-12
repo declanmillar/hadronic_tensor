@@ -4,7 +4,8 @@ lattice continuity equation on the raw grids, and produce the figure.
   PYTHONPATH=. .venv/bin/python scripts/analyze_w_meson.py data/w_meson_ns50_k0.00_v3.npz
 """
 
-import sys
+import argparse
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -17,8 +18,15 @@ OI = ["#0072B2", "#D55E00", "#009E73", "#E69F00", "#CC79A7"]
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from paper_style import *  # usetex + OI palette + dev()
+from run_outputs import check_output_prefix, output_directory
 
-path = sys.argv[1]
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("input", help="MPS production NPZ")
+p.add_argument("--out", help="output prefix (default: a new dated MPS run)")
+args = p.parse_args()
+path = args.input
+out = check_output_prefix(args.out if args.out else
+                          output_directory("meson", kind="mps") / (Path(path).stem + "_W"))
 d = np.load(path)
 ns, vc, k0 = int(d["ns"]), int(d["center"]), float(d["k0"])
 lat = Z2Lattice(ns, pbc=True)
@@ -61,7 +69,7 @@ Ws = [onesided_ft(times, x0, G[:, :nJ0], q0, q1,
 W = Ws[1].astype(complex)
 spread = np.ptp(np.stack(Ws), axis=0)
 print(f"W^00: max|Im|/max|Re| = {np.abs(W.imag).max()/np.abs(W.real).max():.4f}")
-np.savez(path.replace(".npz", "_W.npz"), q0=q0, q1=q1, W=W, spread=spread, k0=k0)
+np.savez(out + ".npz", q0=q0, q1=q1, W=W, spread=spread, k0=k0)
 
 # ---------------- figure
 fig, (axL, axR) = plt.subplots(1, 2, figsize=(9.4, 3.8),
@@ -88,6 +96,5 @@ axR.set_xlabel(r"$q^0$")
 axR.set_ylabel(r"$W^{00}(q^0,q^1)$")
 axR.legend(fontsize=8.5, framealpha=0.9)
 axR.set_title("cuts; band = window systematic", fontsize=10.5)
-out = path.replace(".npz", "_W.pdf")
-fig.savefig(out, dpi=200)
-print("wrote", out)
+fig.savefig(out + ".pdf", dpi=200)
+print("wrote", out + ".pdf", out + ".npz")

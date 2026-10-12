@@ -11,10 +11,13 @@ Gaussian-windowed transform exactly as scripts/analyze_w_meson.py; the MPS
 reference is windowed IDENTICALLY (same 3 times) so the comparison is
 apples-to-apples.  delta-q0 ~ pi/t_max is coarse and labeled as such.
 
-  PYTHONPATH=. .venv/bin/python scripts/hw_w00_coarse.py [tmax]
+  PYTHONPATH=. .venv/bin/python scripts/hw_w00_coarse.py [tmax] [ps_win] [sig_xf]
+
+Outputs default to data/hw/runs/kingston/<UTC analysis timestamp>/.
+Use --out-dir to select a directory; existing outputs are never overwritten.
 """
 
-import sys
+import argparse
 
 import matplotlib
 matplotlib.use("Agg")
@@ -22,6 +25,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from htensor import Z2Lattice, analysis
+from run_outputs import check_output_prefix, output_directory
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("tmax", nargs="?", type=float, default=1.0)
+p.add_argument("ps_win", nargs="?", type=int, default=2)
+p.add_argument("sig_xf", nargs="?", type=float, default=2.0)
+p.add_argument("--out-dir", help="output directory (default: a dated Kingston run)")
+args = p.parse_args()
+TMAX, PS_WIN = args.tmax, args.ps_win
+out = check_output_prefix(output_directory("kingston", args.out_dir)
+                          / f"hw_w00_coarse_t{TMAX:.0f}")
 
 NS, VC = 50, 24
 K0TAG = "k1.26"
@@ -31,7 +45,6 @@ KAP_MIN = 0.05
 # Projects onto the gauge-invariant subspace where the screening cloud
 # lives, un-damping the connected correlator ~2x -- truth-independent
 # (never tuned to the MPS answer), at a shot cost.  PS_WIN=0 disables.
-PS_WIN = 2
 lat = Z2Lattice(NS, pbc=True)
 tru = np.load(f"data/w_meson_ns50_{K0TAG}_v3.npz")
 
@@ -40,9 +53,6 @@ TIER3 = {0.5: "data/hw/job_tier3k_T05MERGED.npz",
          1.5: "data/hw/job_tier3h_T15RZZ.npz",
          2.0: "data/hw/job_tier3f_T20RZZ.npz",
          3.0: "data/hw/job_tier3g_T30RZZ.npz"}
-TMAX = float(sys.argv[1]) if len(sys.argv) > 1 else 1.0
-if len(sys.argv) > 2:
-    PS_WIN = int(sys.argv[2])
 
 # ---- connected vacuum reference (MPS)
 g_vac = analysis.subtract(tru["corr_vac"], None, tru["one_pt_vac"],
@@ -134,7 +144,7 @@ q0 = np.arange(-1.0, 6.001, 0.04)
 ks = np.arange(-(lat.nx // 2), lat.nx // 2 + 1)
 q1 = 2 * np.pi * ks / lat.nx
 DT, DX = 0.5, 0.5
-SIG_XF = float(sys.argv[3]) if len(sys.argv) > 3 else 2.0
+SIG_XF = args.sig_xf
 sig_x = lat.nx / SIG_XF
 
 
@@ -220,7 +230,6 @@ axc.set_title("cuts: hw (solid$\\pm$band) vs MPS (dashed)", fontsize=9)
 axc.legend(fontsize=7)
 fig.suptitle(rf"$W^{{00}}(q^0,q^1)$ from hardware, $t\leq{TMAX:.0f}$"
              rf"  ($\delta q^0\sim{np.pi/TMAX:.1f}$)", fontsize=10)
-out = f"data/hw_w00_coarse_t{TMAX:.0f}"
 fig.savefig(out + ".pdf", dpi=200)
 fig.savefig(out + ".png", dpi=200)
 np.savez(out + ".npz", q0=q0, q1=q1, W_hw=W_hw, W_ref=W_ref,

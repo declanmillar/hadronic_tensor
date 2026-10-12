@@ -6,14 +6,16 @@ Per run: one insertion (J0 at site CENTER or J1 at bond CENTER), probes J0
 at all sites and/or J1 at all bonds, times 0..tmax, on the packet state and
 (unless --vac-grid is given) on the vacuum for the pointwise subtraction.
 The prepared state is built once and pickled (prep_common.stored_prep);
-the npz is rewritten after every time slice and --resume continues.
+the npz is rewritten after every time slice. New grids go under
+data/mps/runs/<tag>/<UTC timestamp>/. Use --resume --out <checkpoint.npz>
+to continue an existing grid with the same time samples and parameters.
 
 Output keys are those of the legacy files (times, k0, ns, center, corr_wp,
 one_pt_wp, insert_1pt_wp, corr_vac, one_pt_vac, insert_1pt_vac, couplings,
 dt_target, trunc) so htensor.tensor.load_mps_components reads them.
 
   PYTHONPATH=. .venv/bin/python scripts/run_w_ns.py --params data/wp10reg_params_k1.26_L3.npz \
-      --insert j0 --probes both --tmax 8 --dt-out 0.5 --resume
+      --insert j0 --probes both --tmax 8 --dt-out 0.5
   PYTHONPATH=. .venv/bin/python scripts/run_w_ns.py --state vac --insert j1  # vacuum grid only
 """
 
@@ -28,6 +30,7 @@ from prep_common import add_state_args, resolve, build_prep, stored_prep, log  #
 from htensor import backends  # noqa: E402
 from htensor import currents as cur  # noqa: E402
 from htensor.measure import split_current  # noqa: E402
+from run_outputs import output_directory, output_file  # noqa: E402
 
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 add_state_args(p)
@@ -38,9 +41,10 @@ p.add_argument("--dt-out", type=float, default=0.5)
 p.add_argument("--dt-target", type=float, default=0.1)
 p.add_argument("--trunc", type=float, default=1e-8)
 p.add_argument("--vac-grid", default=None, help="reuse corr_vac/one_pt_vac/insert_1pt_vac from this npz")
-p.add_argument("--out", default=None)
-p.add_argument("--resume", action="store_true")
+p.add_argument("--out", default=None, help="output NPZ (default: a new dated MPS run)")
+p.add_argument("--resume", action="store_true", help="continue the existing NPZ named by --out")
 args = resolve(p.parse_args())
+out = output_file(args.out, resume=args.resume) if args.out or args.resume else None
 
 lat, prep, info = build_prep(args)
 C = args.center
@@ -52,7 +56,9 @@ if args.probes in ("j1", "both"):
     probes += [cur.bond_current(lat, b, args.eta) for b in range(lat.ns)]
 insert = cur.charge_density(lat, C) if args.insert == "j0" else cur.bond_current(lat, C, args.eta)
 anc_site = min(split_current(insert)[1][0][0])
-out = args.out or f"data/w_{args.tag}_ns{args.ns}_{args.insert}_{info['label']}.npz"
+out = out or output_file(output_directory(args.tag, kind="mps")
+                         / f"w_{args.tag}_ns{args.ns}_{args.insert}_{info['label']}.npz")
+log(f"output: {out}")
 
 # ---- which states to run
 states = ["wp"] if args.state == "packet" else []
@@ -76,12 +82,24 @@ else:
 # ---- resume bookkeeping
 done = {"wp": 0, "vac": 0}
 store = {"wp": None, "vac": None}
-if args.resume and os.path.exists(out):
+if args.resume:
     z = np.load(out, allow_pickle=True)
+    expected = dict(ns=args.ns, center=C, insert=args.insert, probes=args.probes,
+                    m0=args.m0, g2=args.g2, eta=args.eta,
+                    dt_target=args.dt_target, trunc=args.trunc, state=info["label"])
+    for key, value in expected.items():
+        if key not in z.files or np.asarray(z[key]).shape != () or z[key].item() != value:
+            raise ValueError(f"Resume checkpoint {out}: {key} does not match this run")
+    if not np.array_equal(z["times"], times):
+        raise ValueError(f"Resume checkpoint {out}: time samples do not match this run")
     for s in states:
         if f"corr_{s}" in z.files:
             store[s] = {"corr": z[f"corr_{s}"], "one": z[f"one_pt_{s}"], "ins": complex(z[f"insert_1pt_{s}"])}
             done[s] = int(z[f"n_done_{s}"]) if f"n_done_{s}" in z.files else len(z["times"])
+            if (store[s]["corr"].shape != (len(times), len(probes)) or
+                    store[s]["one"].shape != (len(times), len(probes)) or
+                    not 0 <= done[s] <= len(times)):
+                raise ValueError(f"Resume checkpoint {out}: invalid {s} arrays or progress")
     log(f"resuming {out}: done {done}")
 
 
