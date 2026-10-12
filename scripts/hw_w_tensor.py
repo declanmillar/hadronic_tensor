@@ -31,9 +31,11 @@ applied. Vacuum subtraction remains hybrid (MPS), not the measured vacuum.
 """
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
+import shlex
 import sys
 
 import matplotlib
@@ -103,7 +105,7 @@ log_msg = ["Re-only hardware and MPS; hybrid MPS vacuum subtraction; no Trotter 
            f"MPS dt_target={g.meta.get('dt_target', 'unrecorded')}; hardware dt read from slices."]
 W_hw, W_ref, W_err, band, corr = {}, {}, {}, {}, {}
 window_hw, window_ref, details = {}, {}, {}
-source_dt = {}
+source_paths, source_dt = {}, {}
 
 
 def onesided(times, x, G, msk, sig_t):
@@ -121,7 +123,7 @@ for comp in tensor.COMPONENTS:
     nu = comp[1]
     x = g.x[comp]
     rows = {}
-    steps = []
+    paths, steps = [], []
     for t in slice_times:
         path = args.slices.format(comp=comp, t=t)
         if not os.path.exists(path):
@@ -148,7 +150,8 @@ for comp in tensor.COMPONENTS:
         if not ok.any():
             log_msg.append(f"{comp} t={t}: omitted; no finite calibrated probes above kappa threshold")
             continue
-        rows[t] = (G_hw, Cerr, ok)
+        rows[t] = (G_hw, Cerr, ok, kap)
+        paths.append(path)
         steps.append(float(d["dt"]) if "dt" in d.files else DT)
         log_msg.append(f"{comp} t={t}: {int((~ok).sum())} masked ({int((~finite).sum())} nonfinite/invalid), "
                        f"median err {np.median(Cerr[ok]):.4f}")
@@ -195,8 +198,12 @@ for comp in tensor.COMPONENTS:
     for value in (W_hw[comp], W_ref[comp], W_err[comp], window_hw[comp], window_ref[comp]):
         if not np.isfinite(value).all():
             raise ValueError(f"{comp}: nonfinite assembled output")
-    details[f"times_{comp}"] = times
-    source_dt[comp] = steps[0]
+    details.update({f"times_{comp}": times, f"mask_{comp}": mask,
+                    f"kappa_{comp}": np.array([rows[t][3] for t in times]),
+                    f"G_hw_{comp}": Gh, f"G_ref_{comp}": np.where(mask, Gr, 0.0),
+                    f"G_err_{comp}": Ge, f"x_{comp}": x, f"sig_t_{comp}": sig_t,
+                    f"hardware_dt_{comp}": steps[0], f"source_slices_{comp}": paths})
+    source_paths[comp], source_dt[comp] = paths, steps[0]
     log_msg.append(f"{comp}: t_max={tmax}, sigma_t={sig_t:.2f}, W_err={W_err[comp]:.3f}, "
                    f"max|W| hw {np.abs(W_hw[comp]).max():.3f} ref {np.abs(W_ref[comp]).max():.3f}, "
                    f"corr(hw, ref) = {corr[comp]:.3f}")
@@ -212,6 +219,7 @@ if all(c in W_hw for c in tensor.COMPONENTS):
                    f"ref {tensor.ward_residual_q(Wr, q0, q1)}")
 out = args.out or f"data/hw_w_tensor_t{args.tmax:.0f}"
 Path(out).parent.mkdir(parents=True, exist_ok=True)
+command = shlex.join([sys.executable, *sys.argv])
 projections = {}
 if args.parity:
     if not np.allclose(q1, -q1[::-1], rtol=0, atol=1e-12):
@@ -230,10 +238,14 @@ if args.parity:
             np.testing.assert_allclose(even, even[:, ::-1], rtol=0, atol=1e-12)
             np.testing.assert_allclose(odd, -odd[:, ::-1], rtol=0, atol=1e-12)
 log_msg.append("cuts at q1 = " + ", ".join(f"{q1[j]:.6f}" for j in cut_indices))
+log_msg.append("command: PYTHONPATH=. " + command)
 print("\n".join(log_msg))
 np.savez(out + ".npz", q0=q0, q1=q1, k0=k0, times=slice_times,
-         cut_q1=q1[cut_indices], q0_plot_limits=args.q0_range,
-         window_factors=window_factors, **projections,
+         ns=NS, center=C, sig_x=sig_x, integration_dt=DT, integration_dx=DX,
+         source_j0=args.j0, source_j1=args.j1, label=args.label, command=command,
+         cut_q1=q1[cut_indices], q0_plot_limits=args.q0_range, window_factors=window_factors,
+         reference_projection="Re connected correlator", vacuum_subtraction="hybrid MPS",
+         trotter_correction="none", **g.meta, **details, **projections,
          **{f"window_hw_{c}": window_hw[c] for c in W_hw},
          **{f"window_ref_{c}": window_ref[c] for c in W_ref},
          **{f"W_hw_{c}": W_hw[c] for c in W_hw}, **{f"W_ref_{c}": W_ref[c] for c in W_ref},
@@ -242,6 +254,7 @@ np.savez(out + ".npz", q0=q0, q1=q1, k0=k0, times=slice_times,
 
 # ---- figures: retain the full tensor and optionally add parity comparisons.
 comps = [c for c in ("00", "01", "10", "11") if c in W_hw]
+outputs = [out + ".npz"]
 actual_tmax = max(float(details[f"times_{c}"][-1]) for c in comps)
 hw_steps = ", ".join(f"{step:g}" for step in sorted(set(source_dt.values())))
 display_label = re.sub(r"ibm_([A-Za-z0-9]+)", lambda match: dev(match.group(1)), args.label)
@@ -254,6 +267,7 @@ def save_figure(fig, suffix):
     for extension in ("pdf", "png"):
         path = out + suffix + "." + extension
         fig.savefig(path, dpi=220)
+        outputs.append(path)
     plt.close(fig)
 
 
@@ -324,5 +338,18 @@ for i, part in enumerate(parts):
 fig.suptitle(title + "\nSolid: hardware; dashed: matched MPS; bands: saved-error bound + window envelope"
              + "\n" + method_note, fontsize=9)
 save_figure(fig, "_cuts")
-print(f"wrote {out}.{{npz,pdf,png}}, {out}_cuts.{{pdf,png}}"
-      + (f", {out}_even.{{pdf,png}}, {out}_odd.{{pdf,png}}" if args.parity else ""))
+manifest = dict(command="PYTHONPATH=. " + command, source_j0=args.j0, source_j1=args.j1,
+                slices=source_paths, components=comps, hardware_dt=source_dt, mps_metadata=g.meta,
+                actual_times={c: details[f"times_{c}"].tolist() for c in comps},
+                retained_probes={c: details[f"mask_{c}"].sum(axis=1).tolist() for c in comps},
+                mask_convention="True means retained; finite calibrated signal/error and kappa > threshold",
+                kap_min=args.kap_min, reference_projection="real connected correlator",
+                vacuum_subtraction="hybrid MPS", trotter_correction="none",
+                uncertainty="saved-C_err bound plus window envelope; no MPS or Trotter uncertainty",
+                error_propagation="diagonal (independent-site) approximation; C_err includes sampling and "
+                                  "calibration terms; full spatial and shared-mirror covariance omitted",
+                sum_rule="legacy error-weighted charge-conservation projection for 00 and 01",
+                q1_cuts=q1[cut_indices].tolist(), q0_plot_limits=args.q0_range, outputs=outputs)
+Path(out + "_command.json").write_text(json.dumps(manifest, indent=2) + "\n")
+Path(out + ".log").write_text("\n".join(log_msg) + "\n")
+print(f"wrote {out}.{{npz,pdf,png,log}} and {out}_command.json")

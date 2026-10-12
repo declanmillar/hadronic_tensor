@@ -107,8 +107,11 @@ if args.parity:
                      window_factors=(0.75, 1.0, 1.5))
     print("cuts at q1 =", ", ".join(f"{q1[j]:.6f}" for j in cut_indices))
 
-np.savez(tag + "_W.npz", q0=q0, q1=q1, k0=k0, ns=lat.ns,
-         **{f"W_{c}": W[c][0] for c in W},
+sigma_t, sigma_x = tensor.default_windows(g)
+np.savez(tag + "_W.npz", q0=q0, q1=q1, k0=k0, ns=lat.ns, times=g.times,
+         center=g.center, sigma_t=sigma_t, sigma_x=sigma_x,
+         source_j0=path_j0, source_j1=path_j1, label=args.label,
+         **g.meta, **{f"W_{c}": W[c][0] for c in W},
          **{f"spread_{c}": W[c][1] for c in W}, **projections,
          **window_bounds, **plot_meta)
 
