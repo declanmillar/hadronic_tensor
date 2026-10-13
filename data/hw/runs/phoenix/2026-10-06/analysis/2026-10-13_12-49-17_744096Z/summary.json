@@ -1,0 +1,56 @@
+{
+  "mps_run": "data/mps/runs/phoenix/2026-10-13_12-05-21_572598Z",
+  "dt_target": 0.5,
+  "chi_max": 32,
+  "trunc": 1e-05,
+  "preparation_chi_max": 32,
+  "preparation_trunc": 1e-05,
+  "tmax": 6,
+  "hardware_reduction": "existing calibrated slices reused",
+  "qpdf": "unchanged; no real-time evolution",
+  "postselection": "unchanged",
+  "metrics": [
+    {
+      "card": "prod_k1.26_s0.75_ns50",
+      "component": "00",
+      "peak_hardware": 0.898781521143237,
+      "peak_reference": 1.0678746778849009,
+      "error_bound": 1.5007457601359884
+    },
+    {
+      "card": "prod_k1.26_s0.75_ns50",
+      "component": "10",
+      "peak_hardware": 0.3597218557290189,
+      "peak_reference": 0.29221806770718417,
+      "error_bound": 0.09109558643908908
+    },
+    {
+      "card": "relA_k1.26_s0.75_ns50",
+      "component": "00",
+      "peak_hardware": 0.5471497302083103,
+      "peak_reference": 0.4062018353376685,
+      "error_bound": 0.9135514202898186
+    },
+    {
+      "card": "relA_k1.26_s0.75_ns50",
+      "component": "10",
+      "peak_hardware": 0.6064910744482666,
+      "peak_reference": 0.6052702080171453,
+      "error_bound": 0.12211287335482904
+    },
+    {
+      "card": "relA_k1.26_s0.75_ns50",
+      "component": "01",
+      "peak_hardware": 0.6482967128194972,
+      "peak_reference": 0.631618875954779,
+      "error_bound": 1.1663654840958897
+    },
+    {
+      "card": "relA_k1.26_s0.75_ns50",
+      "component": "11",
+      "peak_hardware": 1.5474953418931443,
+      "peak_reference": 1.651412368971821,
+      "error_bound": 0.5120257546366139
+    }
+  ]
+}
