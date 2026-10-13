@@ -40,10 +40,13 @@ p.add_argument("--tmax", type=float, default=8.0)
 p.add_argument("--dt-out", type=float, default=0.5)
 p.add_argument("--dt-target", type=float, default=0.1)
 p.add_argument("--trunc", type=float, default=1e-8)
+p.add_argument("--chi-max", type=int, default=None, help="maximum evolution MPS bond dimension (default: uncapped)")
 p.add_argument("--vac-grid", default=None, help="reuse corr_vac/one_pt_vac/insert_1pt_vac from this npz")
 p.add_argument("--out", default=None, help="output NPZ (default: a new dated MPS run)")
 p.add_argument("--resume", action="store_true", help="continue the existing NPZ named by --out")
 args = resolve(p.parse_args())
+if args.chi_max is not None and args.chi_max < 1:
+    p.error("--chi-max must be positive")
 out = output_file(args.out, resume=args.resume) if args.out or args.resume else None
 
 lat, prep, info = build_prep(args)
@@ -84,6 +87,9 @@ done = {"wp": 0, "vac": 0}
 store = {"wp": None, "vac": None}
 if args.resume:
     z = np.load(out, allow_pickle=True)
+    saved_chi = int(z["chi_max"]) if "chi_max" in z.files else -1
+    if saved_chi != (args.chi_max if args.chi_max is not None else -1):
+        raise ValueError(f"Resume checkpoint {out}: chi_max does not match this run")
     expected = dict(ns=args.ns, center=C, insert=args.insert, probes=args.probes,
                     m0=args.m0, g2=args.g2, eta=args.eta,
                     dt_target=args.dt_target, trunc=args.trunc, state=info["label"])
@@ -107,6 +113,7 @@ def save():
     d = dict(times=times, k0=(info.get("k0") if info.get("k0") is not None else np.nan), ns=args.ns,
              center=C, m0=args.m0, g2=args.g2, eta=args.eta, dt_target=args.dt_target, trunc=args.trunc,
              insert=args.insert, probes=args.probes, tag=args.tag, state=info["label"],
+             chi_max=args.chi_max if args.chi_max is not None else -1,
              sigma_x=(info.get("sigma") if info.get("sigma") is not None else np.nan),
              wp_fidelity=(info.get("F") if info.get("F") is not None else np.nan))
     for s in ("wp", "vac"):
@@ -138,7 +145,8 @@ for s in states:
         t = times[i]
         d = backends.hadamard_correlator_aer(
             lat, None, insert, probes, args.m0, args.g2, args.eta, [t], dt_target=args.dt_target,
-            method="matrix_product_state", mps_trunc=args.trunc, max_threads=args.threads,
+            method="matrix_product_state", mps_trunc=args.trunc, mps_max_bond=args.chi_max,
+            max_threads=args.threads,
             stationary_1pt=(stationary and t > 0), initial_mps=mps, initial_perm=perm)
         store[s]["corr"][i] = d.correlator[0]
         store[s]["one"][i] = d.probe_expect[0]

@@ -103,6 +103,7 @@ def test_mps_resume_keeps_finished_rows_and_rejects_mismatches(tmp_path, monkeyp
     interrupt = True
 
     def correlator(lat, prep, insert, probes, m0, g2, eta, times, **kwargs):
+        assert kwargs["mps_max_bond"] == 32
         calls.append(times[0])
         if interrupt and times[0] > 0:
             raise RuntimeError("simulated interruption")
@@ -112,7 +113,7 @@ def test_mps_resume_keeps_finished_rows_and_rejects_mismatches(tmp_path, monkeyp
     monkeypatch.setattr(backends, "hadamard_correlator_aer", correlator)
     out = tmp_path / "grid.npz"
     argv = ["run_w_ns.py", "--state", "vac", "--ns", "4", "--center", "0",
-            "--probes", "j0", "--tmax", "0.5", "--out", str(out)]
+            "--probes", "j0", "--tmax", "0.5", "--chi-max", "32", "--out", str(out)]
 
     def execute(extra=()):
         monkeypatch.setattr(sys, "argv", argv + list(extra))
@@ -126,7 +127,8 @@ def test_mps_resume_keeps_finished_rows_and_rejects_mismatches(tmp_path, monkeyp
     saved = out.read_bytes()
     with pytest.raises(FileExistsError):
         execute()
-    for extra in (("--dt-target", ".25"), ("--tmax", "1"), ("--insert", "j1")):
+    for extra in (("--dt-target", ".25"), ("--tmax", "1"), ("--insert", "j1"),
+                  ("--chi-max", "64")):
         with pytest.raises(ValueError, match="does not match|do not match"):
             execute(("--resume", *extra))
         assert out.read_bytes() == saved
