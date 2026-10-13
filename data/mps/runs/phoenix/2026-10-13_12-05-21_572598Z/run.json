@@ -1,0 +1,29 @@
+{
+  "started_utc": "2026-10-13_12-05-21_572598Z",
+  "git_commit": "1298274c99de18f8be00eb0b2ef1ce0674769e2a",
+  "hardware_run": "data/hw/runs/phoenix/2026-10-06",
+  "dt_target": 0.5,
+  "dt_out": 0.5,
+  "tmax": 8.0,
+  "runs": [
+    {
+      "point": "prodR",
+      "pid": 66047,
+      "commands": "data/mps/runs/phoenix/2026-10-13_12-05-21_572598Z/prodR_commands.json",
+      "card": "htq_hw/cards/prod_k1.26_s0.75_ns50/card.json",
+      "card_sha256": "b98d612ba9232ac53cdd6285676dcf3b6ed2b9f978e5c4d4a77452979904732a"
+    },
+    {
+      "point": "relA",
+      "pid": 66048,
+      "commands": "data/mps/runs/phoenix/2026-10-13_12-05-21_572598Z/relA_commands.json",
+      "card": "htq_hw/cards/relA_k1.26_s0.75_ns50/card.json",
+      "card_sha256": "0e878b3292f0cf347190f77b51f80811c1d2b7253ae3368e2ed5d6f9dae62b52"
+    }
+  ],
+  "chi_max": 32,
+  "trunc": 1e-05,
+  "cap_prep": 32,
+  "trunc_prep": 1e-05,
+  "code_note": "run_w_ns.py includes uncommitted --chi-max support"
+}
