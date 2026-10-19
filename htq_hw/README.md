@@ -400,8 +400,18 @@ Steps, each a PASS/WARN/FAIL line in the record:
 | rehearse (full) | a card that produces no slices, or a noiseless kappa(centre) off 1 by more than `--kappa-tol` |
 
 `--level fast` stops after `plan`; `--level full` adds `check` and a sampled `rehearse` + `analyze`
-round trip at t = 0 and the shortest evolved slice of each card (`--accept-shots`, default 4000:
-statistics do not matter here, the code path does).  `bundle` requires a full-level record whose
+round trip at t = 0 and the shortest evolved slice of each card.  Those shots cost no QPU: the
+rehearsal is local Aer, not the device plan.  They are tiered, because the cost is linear in shots
+and the three groups need very different precision:
+
+| pubs | flag | default | why |
+|---|---|---|---|
+| slice (j0, j0d, j1p1, j1p2, plain) | `--accept-shots` | 8000 | the J1 kappa estimator has only 3 to 9 sites with a usable t = 0 reference; at 4000 it sits at \|kappa - 1\| ~ 0.19 against a 0.25 tolerance, close enough to trip the gate on its own noise |
+| quasi-PDF, width cards | `--qpdf-shots` | 4000 | 68% of the pub count and unrelated to that check.  Raising them is counterproductive: a fixed systematic's pull grows as sqrt(N), so the gate would eventually fail on an offset that is understood rather than new |
+| quasi-PDF, vacuum cards | `--vac-shot-factor` | 2x | one vacuum sample is subtracted from all three width cards of its coupling, so its fluctuation lands in all three pulls identically and is easily misread as three independent deviations |
+
+That is about 2.5 hours at Ns = 50, against 1.7 at a flat 4000 and 8.8 at a flat 16000.  On device
+the slice pubs get 60000 shots, so the hardware kappa is far better determined than the rehearsal's.  `bundle` requires a full-level record whose
 file hashes still match the tree, so a package cannot be shipped after an edit that was never
 validated.
 

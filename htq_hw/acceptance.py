@@ -47,13 +47,19 @@ class Result:
         return R.FAIL if self.failures else (R.WARN if self.warnings else R.PASS)
 
 
+# families whose reference does not live in a grid of their own: qpdf pubs are
+# reduced against data/qpdf_card_refs.npz, and the plain-evolution pubs read
+# their one-point reference from one_pt_J0 inside the j0 grid
+NO_OWN_GRID = ("qpdf", "plain")
+
+
 def _families_for(specs, cname: str) -> set:
     """Families a card actually needs a grid for: those its specs measure,
     plus j0 whenever anything is mirror-calibrated against it.  ``plain`` is
     not a separate ideal-grid family: its reference is ``one_pt_J0`` in the
     card's ``ideal_j0.npz`` file."""
     fams = {s.family for s in specs
-            if (s.card or "") == cname and s.family not in ("qpdf", "plain")}
+            if (s.card or "") == cname and s.family not in NO_OWN_GRID}
     if any(s.mirror for s in specs if (s.card or "") == cname):
         fams.add("j0")
     return fams
@@ -137,7 +143,7 @@ def _step_qpdf(res, bits_path, lat, center, refs, shots, log):
         return
     pulls = [abs(v["pull"]) for v in rows.values() if "pull" in v]
     res.add("qpdf", R.FAIL if bad else R.PASS,
-            f"{len(rows)} card(s) reduced at {shots} shots"
+            f"{len(rows)} card(s) reduced"
             + (f", worst |pull| {max(pulls):.1f} sigma vs the ideal <x>" if pulls else
                " (no reference file to compare against)")
             + ("; " + "; ".join(bad[:3]) if bad else ""),
@@ -150,6 +156,30 @@ def _qpdf_ref_key(card: str) -> str:
         if part.startswith("s") and part[1:].replace(".", "").isdigit():
             return f"{tag}_s{float(part[1:]):.2f}"
     return f"{tag}_vac"
+
+
+def _rehearse_shots_for(spec, slice_shots: int, qpdf_shots: int, vac_factor: int) -> int:
+    """Shots for one rehearsed pub.  Three tiers, because the cost is linear in
+    shots and 68% of the rehearsal is quasi-PDF pubs that have nothing to do
+    with the tightest check.
+
+    Slice pubs carry it: the J1 kappa estimator has only 3 to 9 sites with a
+    usable t = 0 reference, and at 4k it sits at |kappa - 1| ~ 0.19 against a
+    0.25 tolerance, close enough to trip the gate on its own noise.
+
+    Quasi-PDF pubs need far less, and raising them is counterproductive: a
+    fixed systematic's pull grows as sqrt(N), so the gate would eventually
+    fail on an offset that is understood rather than new.
+
+    Vacuum qpdf cards get ``vac_factor`` more than the width cards, because one
+    vacuum sample is subtracted from all three width cards of its coupling and
+    its fluctuation lands in all three pulls identically.  Cheap insurance
+    against reading one shared draw as three independent deviations.
+    """
+    if spec.family != "qpdf":
+        return int(slice_shots)
+    is_vac = "_vac" in (spec.card or "")
+    return int(qpdf_shots * (vac_factor if is_vac else 1))
 
 
 def _rehearse_times(specs, per_card: int = 1) -> list:
@@ -167,7 +197,8 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         mode: str = "auto", require_real: bool = False, cache_dir=None, threads: int = 2,
         shots_scale: float = 1.0, budget: float = 180.0, rep_time: float = 250e-6,
         tol: float = 5e-3, times=None, wing_surrogate: str | None = None,
-        rehearse_shots: int = 4000, kappa_tol: float = 0.25,
+        rehearse_shots: int = 8000, qpdf_shots: int = 4000, vac_shot_factor: int = 2,
+        kappa_tol: float = 0.25,
         refs: str = "data/qpdf_card_refs.npz", keep_rehearsal: str | None = None,
         log=print) -> dict:
     """-> the record dict (also the return value of the CLI)."""
@@ -348,7 +379,8 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         try:
             rt = list(times) if times is not None else _rehearse_times(specs)
             sub = [s for s in specs if any(abs(s.t - x) < 1e-9 for x in rt)]
-            shots = {s.name: int(rehearse_shots) for s in sub}
+            shots = {s.name: _rehearse_shots_for(s, rehearse_shots, qpdf_shots, vac_shot_factor)
+                     for s in sub}
             out = S.rehearse(be, lat, cards, emb, sub, shots, tpl, out_dir, basis=basis,
                              threads=threads, cache_dir=cache_dir, log=log,
                              wing_surrogate=wing_surrogate)
@@ -370,11 +402,13 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
             missing = [c for c in cards if c not in per_card and _families_for(specs, c)]
             res.add("rehearse", R.FAIL if (bad or missing) else R.PASS,
                     (f"{len(out['slices'])} slices from {len(sub)} pubs at t={rt} "
-                     f"({rehearse_shots} shots), worst |kappa-1| {worst:.3f}")
+                     f"({rehearse_shots} slice / {qpdf_shots} qpdf / "
+                     f"{qpdf_shots * vac_shot_factor} qpdf-vac shots), "
+                     f"worst |kappa-1| {worst:.3f}")
                     + ("; no slices for " + ", ".join(missing) if missing else "")
                     + ("; " + "; ".join(bad[:3]) if bad else ""),
                     slices=len(out["slices"]), worst_kappa_dev=worst, rehearsal=per_card)
-            _step_qpdf(res, out["bits"], lat, emb.center, refs, rehearse_shots, log)
+            _step_qpdf(res, out["bits"], lat, emb.center, refs, qpdf_shots, log)
         except Exception as e:
             res.add("rehearse", R.FAIL, f"{type(e).__name__}: {str(e)[:200]}")
         finally:
