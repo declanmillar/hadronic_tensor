@@ -330,3 +330,110 @@ def test_graph_search_ladder_carries_the_gauss_ancilla_like_the_template():
     assert emb.kind == "ladder" and emb.info["source"] == "graph-search"
     assert len(emb.layout) == 102 and emb.info["gauss_ancillas"] == {25: 101}
     assert g.has_edge(emb.layout[2 * 25], emb.layout[101]) and not ({17, 62, 77} & set(emb.layout))
+
+
+class _Props:
+    """Minimal BackendProperties stand-in: readout {q: err or None}, gates
+    {(gate, (u, v)): err or None}; anything absent raises like qiskit does."""
+
+    def __init__(self, readout, gates):
+        self.ro, self.g = readout, gates
+
+    def is_qubit_operational(self, q):
+        return True
+
+    def readout_error(self, q):
+        if q not in self.ro:
+            raise KeyError(q)
+        return self.ro[q]
+
+    def _key(self, gate, qa):
+        for k in ((gate, tuple(qa)), (gate, tuple(qa[::-1]))):
+            if k in self.g:
+                return k
+        raise KeyError((gate, qa))
+
+    def is_gate_operational(self, gate, qa):
+        self._key(gate, qa)
+        return True
+
+    def gate_error(self, gate, qa):
+        return self.g[self._key(gate, qa)]
+
+
+class _Be:
+    def __init__(self, n, edges, props):
+        self.coupling_map = CouplingMap([list(e) for e in edges] + [[v, u] for u, v in edges])
+        self._p = props
+
+    def properties(self):
+        return self._p
+
+
+def _square(rzz_31_32=1.0):
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
+    gates = {}
+    for e in edges:
+        gates[("cz", e)] = 0.002
+        gates[("rzz", e)] = 0.003
+    gates[("rzz", (1, 2))] = rzz_31_32           # phoenix 2026-11-02: rzz 31-32 = 1.0, CZ 0.017
+    gates[("cz", (1, 2))] = 0.017
+    return _Be(4, edges, _Props({0: 0.01, 1: 0.137, 2: 0.01, 3: None}, gates))
+
+
+def test_rzz_run_checks_the_rzz_calibration_not_the_cz_one():
+    """On phoenix 2026-11-02 coupler 31-32 had a usable CZ (0.017) and an
+    uncalibrated rzz (1.0).  The old check read the first gate the device
+    calibrates (CZ) for every basis, so an rzz run could be laid on it."""
+    be = _square()
+    _, cz = T.operational_graph(be, basis="cz")
+    assert (1, 2) not in cz["dropped_edges"]
+    _, rzz = T.operational_graph(be, basis="rzz")
+    assert (1, 2) in rzz["dropped_edges"] and "rzz" in rzz["reasons"]["e(1, 2)"]
+    _, legacy = T.operational_graph(be)
+    assert (1, 2) not in legacy["dropped_edges"]       # unchanged without a basis
+    # a cut on the rzz error alone also catches it, and CZ is checked too in an rzz run
+    _, cut = T.operational_graph(_square(rzz_31_32=0.03), basis="rzz", max_2q_error=0.02)
+    assert (1, 2) in cut["dropped_edges"]
+    _, czcut = T.operational_graph(_square(rzz_31_32=0.003), basis="rzz", max_2q_error=0.01)
+    assert (1, 2) in czcut["dropped_edges"] and "cz" in czcut["reasons"]["e(1, 2)"]
+
+
+def test_error_cuts_drop_bad_and_uncalibrated_qubits():
+    be = _square(rzz_31_32=0.003)
+    _, none = T.operational_graph(be, basis="rzz")
+    assert none["dropped_qubits"] == []                # no cut: missing readout is not penalised
+    _, rep = T.operational_graph(be, basis="rzz", max_readout_error=0.05)
+    assert rep["dropped_qubits"] == [1, 3]
+    assert rep["reasons"]["q1"].startswith("readout") and rep["reasons"]["q3"] == "no readout calibration"
+
+
+def test_score_ranks_an_rzz_run_on_rzz_errors():
+    from qiskit.circuit.library import CZGate, RZZGate, Measure
+    from qiskit.circuit import Parameter
+    from qiskit.transpiler import Target, InstructionProperties
+    t = Target(num_qubits=3)
+    t.add_instruction(CZGate(), {(0, 1): InstructionProperties(error=0.001),
+                                 (1, 2): InstructionProperties(error=0.001)})
+    t.add_instruction(RZZGate(Parameter("t")), {(0, 1): InstructionProperties(error=0.002),
+                                                (1, 2): InstructionProperties(error=0.5)})
+    t.add_instruction(Measure(), {(q,): InstructionProperties(error=0.0) for q in range(3)})
+
+    class B:
+        target = t
+    emb = T.Embedding("ring", 1, 0, [0, 1, 2])
+    emb.physical_edges = lambda: [(0, 1), (1, 2)]
+    assert T.score_embedding(emb, B()) == pytest.approx(0.002)            # legacy: CZ first
+    assert T.score_embedding(emb, B(), basis="rzz") == pytest.approx(0.504)
+    assert T.score_embedding(emb, B(), basis="cz") == pytest.approx(0.002)
+
+
+def test_cli_error_cuts():
+    import argparse, subprocess, sys
+    from htq_hw.__main__ import _error_cuts
+    assert _error_cuts(argparse.Namespace()) == {}
+    a = argparse.Namespace(max_readout_error=0.05, max_2q_error=0.02)
+    assert _error_cuts(a) == {"max_readout_error": 0.05, "max_2q_error": 0.02}
+    out = subprocess.run([sys.executable, "-m", "htq_hw", "--max-readout-error", "0.05",
+                          "--max-2q-error", "0.02", "--help"], capture_output=True, text=True)
+    assert out.returncode == 0 and "--max-readout-error" in out.stdout and "--max-2q-error" in out.stdout

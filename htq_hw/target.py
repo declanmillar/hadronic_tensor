@@ -783,15 +783,35 @@ class EmbeddingError(ValueError):
         self.diagnostics = diagnostics or {}
 
 
+def basis_two_qubit_gates(basis=None) -> tuple:
+    """Two-qubit gates whose calibration matters for a run in ``basis``.
+
+    An rzz run still carries CZs (the gadgets and the non-fractional parts),
+    so a coupler is only as good as the worse of its rzz and its CZ.  With no
+    basis named the first gate the device calibrates is used (legacy)."""
+    if basis == "rzz":
+        return ("rzz", "cz")
+    if basis == "cz":
+        return ("cz",)
+    return ()
+
+
 def operational_graph(be, exclude_qubits=(), exclude_edges=(), max_2q_error=None,
-                      max_readout_error=None, log=None):
+                      max_readout_error=None, log=None, basis=None):
     """Coupling graph restricted to hardware we are willing to use.
 
     Drops qubits and edges the backend marks non-operational, anything the
     caller excludes, and (when thresholds are given) anything whose calibrated
     error is too high.  -> (Graph, report dict).  Real devices always have some
     disabled elements, so every embedding search should start here rather than
-    from the pristine coupling map."""
+    from the pristine coupling map.
+
+    ``basis`` names the gates the run applies (``basis_two_qubit_gates``):
+    every one of them present on a coupler is checked, so an rzz run cannot
+    pass a coupler on its CZ calibration while its rzz is dead (phoenix
+    2026-11-02: rzz 31-32 error 1.0, CZ 0.017).  With a threshold set, a
+    qubit or a required gate with no calibration counts as failing it: a
+    missing number is not evidence the element works."""
     g0 = Graph.from_backend(be)
     dead_q, dead_e, reasons = set(exclude_qubits), {tuple(sorted(e)) for e in exclude_edges}, {}
     for q in dead_q:
@@ -808,13 +828,35 @@ def operational_graph(be, exclude_qubits=(), exclude_edges=(), max_2q_error=None
             try:
                 if not props.is_qubit_operational(q):
                     dead_q.add(q); reasons[f"q{q}"] = "not operational"
-                elif max_readout_error is not None and props.readout_error(q) > max_readout_error:
-                    dead_q.add(q); reasons[f"q{q}"] = f"readout {props.readout_error(q):.3g}"
+                elif max_readout_error is not None:
+                    ro = _readout_error(props, q)
+                    if ro is None:
+                        dead_q.add(q); reasons[f"q{q}"] = "no readout calibration"
+                    elif ro > max_readout_error:
+                        dead_q.add(q); reasons[f"q{q}"] = f"readout {ro:.3g}"
             except Exception:
-                pass
+                if max_readout_error is not None:
+                    dead_q.add(q); reasons[f"q{q}"] = "no readout calibration"
         for u in range(g0.n):
             for v in g0.adj[u]:
                 if u >= v:
+                    continue
+                if (u, v) in dead_e:
+                    continue
+                required = basis_two_qubit_gates(basis)
+                if required:
+                    present = [gt for gt in required if _gate_error(props, gt, u, v, present_only=True)]
+                    for gate in required:
+                        why = _edge_failure(props, gate, u, v, max_2q_error)
+                        if why is None:
+                            continue
+                        if why == "absent" and present:
+                            # e.g. a CZ-only coupler in an rzz run would be transpiled
+                            # to CZs, which are checked; a gate the device lacks
+                            # on every coupler is caught by the target step
+                            continue
+                        dead_e.add((u, v)); reasons[f"e{(u, v)}"] = f"{gate} {why}"
+                        break
                     continue
                 for gate in ("cz", "ecr", "cx", "rzz"):
                     try:
@@ -835,6 +877,50 @@ def operational_graph(be, exclude_qubits=(), exclude_edges=(), max_2q_error=None
         _log(f"operational graph: {len(dead_q)} qubit(s) and {len(dead_e)} edge(s) excluded "
              f"({g.n_edges}/{g0.n_edges} edges live)", log)
     return g, report
+
+
+def _readout_error(props, q):
+    try:
+        v = props.readout_error(q)
+    except Exception:
+        return None
+    return None if v is None else float(v)
+
+
+def _gate_error(props, gate, u, v, present_only=False):
+    """Calibrated error of ``gate`` on (u, v) in either direction; None if the
+    device reports none.  ``present_only``: True/False for "calibrated at all"."""
+    for qa in ([u, v], [v, u]):
+        try:
+            e = props.gate_error(gate, qa)
+        except Exception:
+            continue
+        if e is not None:
+            return True if present_only else float(e)
+    return False if present_only else None
+
+
+def _edge_failure(props, gate, u, v, max_err):
+    """Why ``gate`` on (u, v) is unusable, or None.  'absent' = no entry."""
+    known = False
+    for qa in ([u, v], [v, u]):
+        try:
+            if not props.is_gate_operational(gate, qa):
+                return "not operational"
+            known = True
+            break
+        except Exception:
+            continue
+    e = _gate_error(props, gate, u, v)
+    if e is None:
+        if not known:
+            return "absent"
+        return "no calibration" if max_err is not None else None
+    if e >= 1.0:
+        return f"error {e:.3g} (uncalibrated)"
+    if max_err is not None and e > max_err:
+        return f"error {e:.3g}"
+    return None
 
 
 def matching_deficit(g: Graph, cycle, extras=()):
@@ -1074,14 +1160,20 @@ def _target_error(target, name_options, qargs):
     return None
 
 
-def score_embedding(emb: Embedding, be) -> float:
+def score_embedding(emb: Embedding, be, basis=None) -> float:
     """Sum of target 2q errors on the required edges plus readout errors on
-    the used qubits (0 where the target reports nothing; lower is better)."""
+    the used qubits (0 where the target reports nothing; lower is better).
+    With ``basis`` the edge term is the sum over the gates that basis applies
+    (``basis_two_qubit_gates``), so an rzz run is ranked on its rzz errors."""
     if emb.layout is None:
         return float("inf")
     target = be.target
     s = 0.0
+    gates = basis_two_qubit_gates(basis)
     for u, v in emb.physical_edges():
+        if gates:
+            s += sum((_target_error(target, (g,), (u, v)) or 0.0) for g in gates)
+            continue
         s += _target_error(target, TWO_Q, (u, v)) or 0.0
     for q in emb.layout:
         s += _target_error(target, ("measure",), (q,)) or 0.0
@@ -1092,7 +1184,7 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
                      max_cycles: int = 4, log=None, gauss_sites=None,
                      allow_transpiler: bool = False, graph=None, beam: int = 64,
                      time_budget_s: float = 600.0, seed: int = SEED,
-                     max_expansions: int = MAX_EXPANSIONS) -> Embedding:
+                     max_expansions: int = MAX_EXPANSIONS, basis=None) -> Embedding:
     """mode: auto | ring | ladder | grid | transpiler.  auto = ladder on a
     square lattice (grid cycle if the ladder does not fit), ring on heavy-hex.
     Ties broken by score_embedding.
@@ -1150,7 +1242,7 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
             diagnostics=diag)
     for e in cands:
         e.validate(g)
-    scored = sorted(((score_embedding(e, be), i, e) for i, e in enumerate(cands)),
+    scored = sorted(((score_embedding(e, be, basis), i, e) for i, e in enumerate(cands)),
                     key=lambda x: (x[0], x[1]))
     best = scored[0][2]
     best.info["score"] = scored[0][0]

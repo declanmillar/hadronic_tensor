@@ -137,6 +137,16 @@ def _excluded_qubits(args) -> tuple:
     return tuple(int(q) for q in _items(getattr(args, "exclude_qubits", None)))
 
 
+def _error_cuts(args) -> dict:
+    """--max-readout-error / --max-2q-error -> operational_graph keywords."""
+    out = {}
+    if getattr(args, "max_readout_error", None) is not None:
+        out["max_readout_error"] = float(args.max_readout_error)
+    if getattr(args, "max_2q_error", None) is not None:
+        out["max_2q_error"] = float(args.max_2q_error)
+    return out
+
+
 def _excluded_edges(args) -> tuple:
     """'U-V' items -> (u, v) pairs."""
     out = []
@@ -164,13 +174,16 @@ def _setup(args, basis=None, require_real=False):
         gauss_sites = gauss_ancilla_sites(lat, center)
     # the search starts from the operational graph, never the pristine map:
     # what the backend marks dead plus what the caller excludes
+    run_basis = basis or args.basis
     graph, greport = T.operational_graph(be, exclude_qubits=_excluded_qubits(args),
-                                         exclude_edges=_excluded_edges(args), log=log)
+                                         exclude_edges=_excluded_edges(args), log=log,
+                                         basis=run_basis, **_error_cuts(args))
     if greport["dropped_qubits"] or greport["dropped_edges"]:
         log(f"embedding avoids {len(greport['dropped_qubits'])} qubit(s) and "
             f"{len(greport['dropped_edges'])} coupler(s): {greport['reasons']}")
     emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log, gauss_sites=gauss_sites,
-                             graph=graph, allow_transpiler=getattr(args, "allow_transpiler", False))
+                             graph=graph, allow_transpiler=getattr(args, "allow_transpiler", False),
+                             basis=run_basis)
     if getattr(args, "preset", None):
         specs = CP.compose_presets(args.preset)
         card = CP.load_cards(specs, None)       # {name: card} for the composed campaign
@@ -463,7 +476,8 @@ def cmd_acceptance(args):
                  qpdf_shots=args.qpdf_shots, vac_shot_factor=args.vac_shot_factor,
                  kappa_tol=args.kappa_tol, refs=args.refs,
                  keep_rehearsal=args.keep_rehearsal, log=log,
-                 exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args))
+                 exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args),
+                 **_error_cuts(args))
     path = R.write_record(record_path, "acceptance", rec, rec["status"])
     print()
     print(R.summarize({"kind": "acceptance", **rec, "env": R.env_stamp(), "git": R.git_stamp()}))
@@ -584,6 +598,12 @@ def main(argv=None):
                          "the bad link qubit of the 2026-10-06 phoenix ladder")
     ap.add_argument("--exclude-edges", default="", metavar="U-V,U-V,...",
                     help="physical couplers the embedding must not use, comma-separated U-V pairs")
+    ap.add_argument("--max-readout-error", type=float, default=None, metavar="P",
+                    help="drop qubits whose calibrated readout error exceeds P (and qubits with no "
+                         "readout calibration), e.g. 0.03")
+    ap.add_argument("--max-2q-error", type=float, default=None, metavar="P",
+                    help="drop couplers where a two-qubit gate of the run's basis (rzz and CZ for "
+                         "--basis rzz) exceeds P or has no calibration, e.g. 0.01")
     ap.add_argument("--allow-transpiler", action="store_true",
                     help="permit a transpiler-chosen layout when no ladder/ring fits. Off by default: "
                          "it roughly doubles the two-qubit count and skips the layout-preservation "
