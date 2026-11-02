@@ -47,3 +47,4 @@ paper/annotations/
 # raw per-shot hardware bits and vendor drops (hundreds of MB, public repo)
 ibm_data/
 data/hw/runs/*/*/raw/
+files_for_hank_*.zip
