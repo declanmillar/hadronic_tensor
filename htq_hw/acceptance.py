@@ -17,6 +17,7 @@ rehearse+analyze per card, and is what bundle requires.
 
 import os
 import time
+from dataclasses import replace
 
 import numpy as np
 
@@ -191,6 +192,30 @@ def _rehearse_times(specs, per_card: int = 1) -> list:
         ts = sorted({s.t for s in specs if (s.card or "") == c and s.t > 0})
         out.update(ts[:per_card])
     return sorted(out)
+
+
+def _rehearse_specs(specs, times) -> list:
+    """Select local pubs and supply the real inputs needed to analyze Im data.
+
+    Im presets already carry X mirrors; add only missing X physics/references.
+    Companions are local to rehearsal and never enter the production plan.
+    """
+    sub = [s for s in specs if any(abs(s.t - t) < 1e-9 for t in times)]
+
+    def key(s):
+        return (s.card, s.family, s.t, s.mirror, s.readout, s.anc_basis,
+                s.n_steps, s.dt, s.preset == "gauss-midcircuit")
+
+    seen = {key(s) for s in sub}
+    for s in list(sub):
+        if s.anc_basis != "Y" or s.mirror:
+            continue
+        companion = replace(s, anc_basis="X", name=CP.pub_name(
+            s.family, s.t, s.mirror, s.readout, "X", s.dt, CP.split_prefix(s.name)[0]))
+        if key(companion) not in seen:
+            sub.append(companion)
+            seen.add(key(companion))
+    return sub
 
 
 def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fast",
@@ -394,7 +419,10 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         os.makedirs(out_dir, exist_ok=True)
         try:
             rt = list(times) if times is not None else _rehearse_times(specs)
-            sub = [s for s in specs if any(abs(s.t - x) < 1e-9 for x in rt)]
+            sub = _rehearse_specs(specs, rt)
+            companions = sum(s.name not in pubs for s in sub)
+            if companions:
+                T._log(f"rehearsal adds {companions} local X-ancilla companion pubs for Im analysis", log)
             shots = {s.name: _rehearse_shots_for(s, rehearse_shots, qpdf_shots, vac_shot_factor)
                      for s in sub}
             out = S.rehearse(be, lat, cards, emb, sub, shots, tpl, out_dir, basis=basis,
@@ -423,7 +451,8 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
                      f"worst |kappa-1| {worst:.3f}")
                     + ("; no slices for " + ", ".join(missing) if missing else "")
                     + ("; " + "; ".join(bad[:3]) if bad else ""),
-                    slices=len(out["slices"]), worst_kappa_dev=worst, rehearsal=per_card)
+                    slices=len(out["slices"]), worst_kappa_dev=worst, rehearsal=per_card,
+                    real_companion_pubs=companions)
             _step_qpdf(res, out["bits"], lat, emb.center, refs, qpdf_shots, log)
         except Exception as e:
             res.add("rehearse", R.FAIL, f"{type(e).__name__}: {str(e)[:200]}")
