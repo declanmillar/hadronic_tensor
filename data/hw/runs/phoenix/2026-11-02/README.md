@@ -17,3 +17,7 @@
 `scripts/phoenix_snapshot_backend.py` rebuilds an offline phoenix from a
 snapshot (FakeNighthawk configuration, same 218 couplers, with rzz); the
 embedding it gives for the rzz gate's settings is identical to the live one.
+
+The [3 November planning review](planning_review.md) gives reproducible
+62-microsecond cost projections and distinguishes the CZ and RZZ calibration
+values on the connections used by the recorded layout.

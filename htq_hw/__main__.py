@@ -71,13 +71,17 @@ def cmd_audit(args):
 def cmd_embed(args):
     card = C.load_card(args.card)
     center = _center_for(card, args.ns)
+    basis = getattr(args, "basis", "cz")
     for spec in args.targets:
-        be = T.resolve_backend(spec)
-        g = T.Graph.from_backend(be)
+        be = T.resolve_backend(spec, fractional=(basis == "rzz"))
+        g, _ = T.operational_graph(be, exclude_qubits=_excluded_qubits(args),
+                                   exclude_edges=_excluded_edges(args), basis=basis,
+                                   log=log, **_error_cuts(args))
         print(f"{spec}: {be.num_qubits} qubits, {g.n_edges} edges, "
               f"grid {T.grid_coordinates(g)[:2] if T.grid_coordinates(g) else None}")
         emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log,
-                                 allow_transpiler=getattr(args, "allow_transpiler", False))
+                                 allow_transpiler=getattr(args, "allow_transpiler", False),
+                                 graph=g, basis=basis)
         emb.validate(g)
         info = {k: v for k, v in emb.info.items() if k != "cycle"}
         print(f"  {emb.summary()}  info {info}")
@@ -86,26 +90,32 @@ def cmd_embed(args):
 
 def cmd_report(args):
     card = C.load_card(args.card)
+    filters = dict(exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args),
+                   **_error_cuts(args))
+    allow_transpiler = getattr(args, "allow_transpiler", False)
     rows = T.report(args.targets, ns=args.ns, steps=tuple(args.steps), bases=tuple(args.basis),
                     mode=args.mode, gadgets=tuple(args.gadget), card=card,
-                    cache_dir=args.cache, seed=args.seed, log=log)
+                    cache_dir=args.cache, seed=args.seed, log=log,
+                    allow_transpiler=allow_transpiler, **filters)
     print()
     print(T.format_table(rows))
     for spec in args.targets:
-        be = T.resolve_backend(spec)
-        if T.is_real_backend(be):
-            lat = Lattice(args.ns)
-            emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode,
-                                     allow_transpiler=getattr(args, "allow_transpiler", False))
-            b = T.transpile_bundle(be, lat, card, emb, (max(args.steps),), args.basis[0], "J0", args.seed, args.cache)
-            full = C.readout_layer(b.base.compose(b.blocks[max(args.steps)]["physics"]), lat,
-                                   b.blocks[max(args.steps)]["layout"], "Z")
-            pst = T.per_shot_time(be, full)
-            print(f"{spec}: measured per-shot time (deepest pub, readout + reset + overhead) = "
-                  f"{pst['total_s'] * 1e6:.0f} us -> plan re-pins with --rep-time {pst['total_s']:.6f}")
-        elif getattr(be, "_htq_standin_for", None):
-            print(f"{spec}: {be._htq_standin_for} not visible, counts above are for the stand-in {T.backend_label(be)}; "
-                  f"per-shot time assumed {250e-6 * 1e6:.0f} us until measured")
+        for basis in args.basis:
+            be = T.resolve_backend(spec, fractional=(basis == "rzz"))
+            if T.is_real_backend(be):
+                lat = Lattice(args.ns)
+                graph, _ = T.operational_graph(be, basis=basis, log=log, **filters)
+                emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode,
+                                         allow_transpiler=allow_transpiler, graph=graph, basis=basis)
+                b = T.transpile_bundle(be, lat, card, emb, (max(args.steps),), basis, "J0", args.seed, args.cache)
+                full = C.readout_layer(b.base.compose(b.blocks[max(args.steps)]["physics"]), lat,
+                                       b.blocks[max(args.steps)]["layout"], "Z")
+                pst = T.per_shot_time(be, full)
+                print(f"{spec} [{basis}]: estimated per-shot time (deepest pub, readout + reset + overhead) = "
+                      f"{pst['total_s'] * 1e6:.0f} us; use --rep-time {pst['total_s']:.6f} to budget at this estimate")
+            elif getattr(be, "_htq_standin_for", None):
+                print(f"{spec} [{basis}]: {be._htq_standin_for} not visible, counts above are for the stand-in {T.backend_label(be)}; "
+                      f"per-shot time assumed {250e-6 * 1e6:.0f} us until measured")
     if args.json:
         with open(args.json, "w") as f:
             json.dump(rows, f, indent=1, default=str)
@@ -198,12 +208,16 @@ def _plan(args, specs, info, be, pubs):
     from . import campaign as CP
     n2q = {n: info[n]["n2q"] for n in pubs}
     rep = args.rep_time
-    if T.is_real_backend(be):
-        deepest = max(pubs, key=lambda n: info[n]["n2q"])
-        pst = T.per_shot_time(be, pubs[deepest])
-        print(f"measured per-shot time on {T.backend_label(be)} (deepest pub {deepest}): circuit "
-              f"{pst['circuit_us']} us + reset {pst['reset_us']} us + overhead {pst['overhead_us']} us = {pst['total_s'] * 1e6:.0f} us; re-pinning the plan")
-        rep = pst["total_s"]
+    if rep is None:
+        rep = 250e-6
+        if T.is_real_backend(be):
+            deepest = max(pubs, key=lambda n: info[n]["n2q"])
+            pst = T.per_shot_time(be, pubs[deepest])
+            print(f"estimated per-shot time on {T.backend_label(be)} (deepest pub {deepest}): circuit "
+                  f"{pst['circuit_us']} us + reset {pst['reset_us']} us + assumed overhead "
+                  f"{pst['overhead_us']} us = {pst['total_s'] * 1e6:.0f} us; "
+                  "using this estimate because --rep-time was omitted")
+            rep = pst["total_s"]
     budget = args.budget if args.budget is not None else (180.0 if getattr(args, "preset", None) else 36.0)
     return CP.shots_plan(specs, n2q, budget, rep, mirror_floor=args.mirror_floor,
                          weighting=args.weighting, shots_per_pub=args.shots_per_pub), rep
@@ -573,7 +587,9 @@ def _add_campaign_args(p):
     p.add_argument("--weighting", default=None, choices=["equal", "kappa"],
                    help="shots per pub: equal (default with presets) or kappa-weighted (default otherwise)")
     p.add_argument("--shots-per-pub", type=int, default=60000)
-    p.add_argument("--rep-time", type=float, default=250e-6)
+    p.add_argument("--rep-time", type=_positive_seconds, default=None, metavar="SECONDS",
+                   help="seconds per shot; overrides the backend estimate (default: estimate on "
+                        "real backends, 250 us otherwise)")
     p.add_argument("--mirror-floor", type=int, default=30000)
     p.add_argument("--max-pubs", type=int, default=8)
     p.add_argument("--ideal", default=None, help="ideal grid template with {family}")
@@ -584,6 +600,13 @@ def _nonnegative_seconds(value):
     seconds = float(value)
     if not math.isfinite(seconds) or seconds < 0:
         raise argparse.ArgumentTypeError("must be a finite, non-negative number of seconds")
+    return seconds
+
+
+def _positive_seconds(value):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("must be a finite, positive number of seconds")
     return seconds
 
 
@@ -612,6 +635,7 @@ def main(argv=None):
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     e = sub.add_parser("embed")
     e.add_argument("--targets", nargs="+", default=["fake:boston", "fake:nighthawk"])
+    e.add_argument("--basis", default="cz", choices=["cz", "rzz"])
     e.add_argument("--mode", default="auto", choices=["auto", "ring", "ladder", "grid", "transpiler"])
     e.set_defaults(fn=cmd_embed)
     r = sub.add_parser("report")
@@ -744,7 +768,8 @@ def main(argv=None):
     ac.add_argument("--times", type=float, nargs="+", default=None)
     ac.add_argument("--tol", type=float, default=5e-3)
     ac.add_argument("--budget", type=float, default=180.0)
-    ac.add_argument("--rep-time", type=float, default=250e-6)
+    ac.add_argument("--rep-time", type=_positive_seconds, default=250e-6, metavar="SECONDS",
+                    help="seconds per shot used for the budget estimate (default: 250 us)")
     ac.add_argument("--cache", default=str(pathlib.Path.home() / ".cache" / "htq_hw"),
                     help="qpy / prep-MPS cache ('' disables); the full level needs it")
     ac.add_argument("--threads", type=int, default=2)
