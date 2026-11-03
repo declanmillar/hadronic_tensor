@@ -1094,7 +1094,10 @@ class Embedding:
             edges += [(2 * n + 1, (2 * n + 2) % L) for n in range(self.ns)]
         else:
             edges = [(i, (i + 1) % L) for i in range(L)]
-        return edges + [(anc, 2 * self.center)]
+        edges.append((anc, 2 * self.center))
+        edges.extend((2 * int(site), int(wire))
+                     for site, wire in self.info.get("gauss_ancillas", {}).items())
+        return edges
 
     def physical_edges(self) -> list[tuple[int, int]]:
         return [(self.layout[a], self.layout[b]) for a, b in self.required_edges()]
@@ -1135,9 +1138,6 @@ class Embedding:
             raise ValueError("physical qubit out of range")
         bad = [(a, b) for a, b in self.required_edges()
                if not g.has_edge(self.layout[a], self.layout[b])]
-        for site, wire in self.info.get("gauss_ancillas", {}).items():
-            if not g.has_edge(self.layout[2 * int(site)], self.layout[wire]):
-                bad.append((2 * int(site), wire))
         if bad:
             raise ValueError(f"{len(bad)} required edges missing, e.g. {bad[:3]}")
         return self
