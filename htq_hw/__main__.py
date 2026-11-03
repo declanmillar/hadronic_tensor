@@ -198,12 +198,16 @@ def _plan(args, specs, info, be, pubs):
     from . import campaign as CP
     n2q = {n: info[n]["n2q"] for n in pubs}
     rep = args.rep_time
-    if T.is_real_backend(be):
-        deepest = max(pubs, key=lambda n: info[n]["n2q"])
-        pst = T.per_shot_time(be, pubs[deepest])
-        print(f"measured per-shot time on {T.backend_label(be)} (deepest pub {deepest}): circuit "
-              f"{pst['circuit_us']} us + reset {pst['reset_us']} us + overhead {pst['overhead_us']} us = {pst['total_s'] * 1e6:.0f} us; re-pinning the plan")
-        rep = pst["total_s"]
+    if rep is None:
+        rep = 250e-6
+        if T.is_real_backend(be):
+            deepest = max(pubs, key=lambda n: info[n]["n2q"])
+            pst = T.per_shot_time(be, pubs[deepest])
+            print(f"estimated per-shot time on {T.backend_label(be)} (deepest pub {deepest}): circuit "
+                  f"{pst['circuit_us']} us + reset {pst['reset_us']} us + assumed overhead "
+                  f"{pst['overhead_us']} us = {pst['total_s'] * 1e6:.0f} us; "
+                  "using this estimate because --rep-time was omitted")
+            rep = pst["total_s"]
     budget = args.budget if args.budget is not None else (180.0 if getattr(args, "preset", None) else 36.0)
     return CP.shots_plan(specs, n2q, budget, rep, mirror_floor=args.mirror_floor,
                          weighting=args.weighting, shots_per_pub=args.shots_per_pub), rep
@@ -573,7 +577,9 @@ def _add_campaign_args(p):
     p.add_argument("--weighting", default=None, choices=["equal", "kappa"],
                    help="shots per pub: equal (default with presets) or kappa-weighted (default otherwise)")
     p.add_argument("--shots-per-pub", type=int, default=60000)
-    p.add_argument("--rep-time", type=float, default=250e-6)
+    p.add_argument("--rep-time", type=_positive_seconds, default=None, metavar="SECONDS",
+                   help="seconds per shot; overrides the backend estimate (default: estimate on "
+                        "real backends, 250 us otherwise)")
     p.add_argument("--mirror-floor", type=int, default=30000)
     p.add_argument("--max-pubs", type=int, default=8)
     p.add_argument("--ideal", default=None, help="ideal grid template with {family}")
@@ -584,6 +590,13 @@ def _nonnegative_seconds(value):
     seconds = float(value)
     if not math.isfinite(seconds) or seconds < 0:
         raise argparse.ArgumentTypeError("must be a finite, non-negative number of seconds")
+    return seconds
+
+
+def _positive_seconds(value):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("must be a finite, positive number of seconds")
     return seconds
 
 
@@ -744,7 +757,8 @@ def main(argv=None):
     ac.add_argument("--times", type=float, nargs="+", default=None)
     ac.add_argument("--tol", type=float, default=5e-3)
     ac.add_argument("--budget", type=float, default=180.0)
-    ac.add_argument("--rep-time", type=float, default=250e-6)
+    ac.add_argument("--rep-time", type=_positive_seconds, default=250e-6, metavar="SECONDS",
+                    help="seconds per shot used for the budget estimate (default: 250 us)")
     ac.add_argument("--cache", default=str(pathlib.Path.home() / ".cache" / "htq_hw"),
                     help="qpy / prep-MPS cache ('' disables); the full level needs it")
     ac.add_argument("--threads", type=int, default=2)
