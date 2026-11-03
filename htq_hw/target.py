@@ -1571,17 +1571,21 @@ def assign_block(b: Bundle, n: int, t_total: float, eps: float = MIRROR_EPS):
 # ------------------------------------------------------------------ report
 def report(targets, ns: int = 50, steps=(1, 12), bases=("cz", "rzz"), mode: str = "auto",
            gadgets=("J0", "J1a"), card=None, cache_dir=None, seed: int = SEED,
-           log=print) -> list[dict]:
-    """Offline count table for each target x basis.  -> list of row dicts."""
+           log=print, exclude_qubits=(), exclude_edges=(), max_readout_error=None,
+           max_2q_error=None, allow_transpiler: bool = False) -> list[dict]:
+    """Offline count table, selecting a filtered layout for each target x basis."""
     card = card or C.load_card()
     lat = Lattice(ns)
     center = card["center"] if ns == card["ns"] else ns // 2 - 1
     rows = []
     for spec in targets:
-        be = resolve_backend(spec)
-        emb = choose_embedding(be, ns, center, mode=mode, log=log)
         for basis in bases:
             be_b = resolve_backend(spec, fractional=(basis == "rzz"))
+            graph, _ = operational_graph(be_b, exclude_qubits=exclude_qubits, exclude_edges=exclude_edges,
+                                         max_readout_error=max_readout_error, max_2q_error=max_2q_error,
+                                         basis=basis, log=log)
+            emb = choose_embedding(be_b, ns, center, mode=mode, log=log, graph=graph,
+                                   basis=basis, allow_transpiler=allow_transpiler)
             for kind in gadgets:
                 _log(f"== {spec} [{emb.kind}] basis={basis} gadget={kind}", log)
                 bnd = transpile_bundle(be_b, lat, card, emb, steps, basis, kind, seed,

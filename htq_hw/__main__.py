@@ -71,13 +71,17 @@ def cmd_audit(args):
 def cmd_embed(args):
     card = C.load_card(args.card)
     center = _center_for(card, args.ns)
+    basis = getattr(args, "basis", "cz")
     for spec in args.targets:
-        be = T.resolve_backend(spec)
-        g = T.Graph.from_backend(be)
+        be = T.resolve_backend(spec, fractional=(basis == "rzz"))
+        g, _ = T.operational_graph(be, exclude_qubits=_excluded_qubits(args),
+                                   exclude_edges=_excluded_edges(args), basis=basis,
+                                   log=log, **_error_cuts(args))
         print(f"{spec}: {be.num_qubits} qubits, {g.n_edges} edges, "
               f"grid {T.grid_coordinates(g)[:2] if T.grid_coordinates(g) else None}")
         emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log,
-                                 allow_transpiler=getattr(args, "allow_transpiler", False))
+                                 allow_transpiler=getattr(args, "allow_transpiler", False),
+                                 graph=g, basis=basis)
         emb.validate(g)
         info = {k: v for k, v in emb.info.items() if k != "cycle"}
         print(f"  {emb.summary()}  info {info}")
@@ -86,26 +90,32 @@ def cmd_embed(args):
 
 def cmd_report(args):
     card = C.load_card(args.card)
+    filters = dict(exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args),
+                   **_error_cuts(args))
+    allow_transpiler = getattr(args, "allow_transpiler", False)
     rows = T.report(args.targets, ns=args.ns, steps=tuple(args.steps), bases=tuple(args.basis),
                     mode=args.mode, gadgets=tuple(args.gadget), card=card,
-                    cache_dir=args.cache, seed=args.seed, log=log)
+                    cache_dir=args.cache, seed=args.seed, log=log,
+                    allow_transpiler=allow_transpiler, **filters)
     print()
     print(T.format_table(rows))
     for spec in args.targets:
-        be = T.resolve_backend(spec)
-        if T.is_real_backend(be):
-            lat = Lattice(args.ns)
-            emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode,
-                                     allow_transpiler=getattr(args, "allow_transpiler", False))
-            b = T.transpile_bundle(be, lat, card, emb, (max(args.steps),), args.basis[0], "J0", args.seed, args.cache)
-            full = C.readout_layer(b.base.compose(b.blocks[max(args.steps)]["physics"]), lat,
-                                   b.blocks[max(args.steps)]["layout"], "Z")
-            pst = T.per_shot_time(be, full)
-            print(f"{spec}: measured per-shot time (deepest pub, readout + reset + overhead) = "
-                  f"{pst['total_s'] * 1e6:.0f} us -> plan re-pins with --rep-time {pst['total_s']:.6f}")
-        elif getattr(be, "_htq_standin_for", None):
-            print(f"{spec}: {be._htq_standin_for} not visible, counts above are for the stand-in {T.backend_label(be)}; "
-                  f"per-shot time assumed {250e-6 * 1e6:.0f} us until measured")
+        for basis in args.basis:
+            be = T.resolve_backend(spec, fractional=(basis == "rzz"))
+            if T.is_real_backend(be):
+                lat = Lattice(args.ns)
+                graph, _ = T.operational_graph(be, basis=basis, log=log, **filters)
+                emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode,
+                                         allow_transpiler=allow_transpiler, graph=graph, basis=basis)
+                b = T.transpile_bundle(be, lat, card, emb, (max(args.steps),), basis, "J0", args.seed, args.cache)
+                full = C.readout_layer(b.base.compose(b.blocks[max(args.steps)]["physics"]), lat,
+                                       b.blocks[max(args.steps)]["layout"], "Z")
+                pst = T.per_shot_time(be, full)
+                print(f"{spec} [{basis}]: estimated per-shot time (deepest pub, readout + reset + overhead) = "
+                      f"{pst['total_s'] * 1e6:.0f} us; use --rep-time {pst['total_s']:.6f} to budget at this estimate")
+            elif getattr(be, "_htq_standin_for", None):
+                print(f"{spec} [{basis}]: {be._htq_standin_for} not visible, counts above are for the stand-in {T.backend_label(be)}; "
+                      f"per-shot time assumed {250e-6 * 1e6:.0f} us until measured")
     if args.json:
         with open(args.json, "w") as f:
             json.dump(rows, f, indent=1, default=str)
@@ -625,6 +635,7 @@ def main(argv=None):
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     e = sub.add_parser("embed")
     e.add_argument("--targets", nargs="+", default=["fake:boston", "fake:nighthawk"])
+    e.add_argument("--basis", default="cz", choices=["cz", "rzz"])
     e.add_argument("--mode", default="auto", choices=["auto", "ring", "ladder", "grid", "transpiler"])
     e.set_defaults(fn=cmd_embed)
     r = sub.add_parser("report")
