@@ -1107,12 +1107,16 @@ def search_ladder(g: Graph, ns: int, center: int = CENTER, gauss_sites=None, bea
     return out
 
 
-def largest_feasible_ns(g: Graph, center: int = CENTER, ns_max: int = 50, ns_min: int = 40, **kw):
-    """Diagnostic for a device that cannot host ns_max: the largest even ns
-    that does fit.  Reported when an embedding fails, because dropping Ns is a
-    physics decision (every reference grid is Ns-specific), not a transpiler one."""
+def largest_feasible_ns(g: Graph, center: int = CENTER, ns_max: int = 50, ns_min: int = 40,
+                        gauss_sites=None, **kw):
+    """Largest even ns found by a bounded diagnostic search with the same
+    ancilla requirements.  Reported when an embedding fails, because dropping
+    Ns is a physics decision (every reference grid is Ns-specific), not a transpiler one."""
     for ns in range(ns_max - (ns_max % 2), ns_min - 1, -2):
-        if search_ladder(g, ns, center=min(center, ns - 1), max_embeddings=1, **kw):
+        if gauss_sites and max(center, *gauss_sites) >= ns:
+            continue                       # do not wrap the requested sites onto different sites
+        if search_ladder(g, ns, center=min(center, ns - 1), gauss_sites=gauss_sites,
+                         max_embeddings=1, **kw):
             return ns
     return None
 
@@ -1267,7 +1271,8 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
             raise EmbeddingError(
                 f"the ladder search on {backend_label(be)} was truncated by {search['stopped_by']} "
                 f"after {search.get('expansions')} expansions ({search.get('seconds')} s) without "
-                f"finding an Ns={ns} cycle. That is an unfinished search, not a device that cannot "
+                f"finding an Ns={ns} layout with the requested ancillas. "
+                f"That is an unfinished search, not a device that cannot "
                 f"host one, and the fallback layouts cost about 1.9x the two-qubit count per step. "
                 f"Raise max_expansions (currently {max_expansions}) or time_budget_s, or pass "
                 f"mode='grid' deliberately.", diagnostics={"search": search, "ns": ns})
@@ -1277,19 +1282,21 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
         cands = ring_embeddings(g, ns, center, max_cycles=max_cycles)
     if not cands:
         diag = {"ns": ns, "center": center, "live_qubits": sum(1 for a in g.adj if a),
-                "edges": g.n_edges, "needed_qubits": 2 * ns + 1, "mode": mode}
+                "edges": g.n_edges, "needed_qubits": 2 * ns + 1 + len(gauss_sites or []),
+                "gauss_sites": list(gauss_sites or []), "mode": mode, "search": search}
         try:
             diag["largest_feasible_ns"] = largest_feasible_ns(
-                g, center, ns_max=ns, beam=max(16, beam // 2), time_budget_s=time_budget_s / 2)
+                g, center, ns_max=ns, gauss_sites=gauss_sites, beam=max(16, beam // 2),
+                time_budget_s=time_budget_s / 2, max_expansions=max_expansions, seed=seed)
         except Exception:
             pass
         if allow_transpiler:
             _log(f"no structured embedding fits ({diag}); falling back to the transpiler", log)
             return Embedding("transpiler", ns, center, None)
         raise EmbeddingError(
-            f"no {mode} embedding of Ns={ns} on {backend_label(be)}: needs {2 * ns + 1} qubits, "
+            f"no {mode} embedding of Ns={ns} found on {backend_label(be)}: needs {diag['needed_qubits']} qubits, "
             f"{diag['live_qubits']} live with {g.n_edges} edges"
-            + (f"; largest feasible Ns is {diag['largest_feasible_ns']}"
+            + (f"; largest Ns found by the diagnostic search is {diag['largest_feasible_ns']}"
                if diag.get("largest_feasible_ns") else "")
             + ". Refusing to fall back to a transpiler layout (it doubles the two-qubit count and "
               "voids the physics/mirror skeleton); pass allow_transpiler=True to override.",
