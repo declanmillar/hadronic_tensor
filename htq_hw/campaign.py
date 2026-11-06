@@ -609,6 +609,41 @@ def group_jobs(specs, max_pubs: int = 8) -> list[list[str]]:
     return jobs
 
 
+def preflight_runtime(be, pubs: dict, shots: dict, jobs: list[list[str]],
+                      job_indices: list[int] | None = None) -> dict:
+    """Check every selected Runtime input without creating a sampler or job.
+
+    These are the pinned client's PUB, register, RZZ, ISA and faulty-hardware
+    checks; passing them does not guarantee server-side acceptance.
+    """
+    from qiskit.primitives.containers.sampler_pub import SamplerPub
+    from qiskit_ibm_runtime.utils.validations import (
+        validate_classical_registers, validate_isa_circuits, validate_rzz_pubs,
+    )
+
+    indices = list(range(len(jobs))) if job_indices is None else list(job_indices)
+    if len(indices) != len(jobs):
+        raise ValueError("job_indices must have one entry per job")
+    target = getattr(be, "target", None)
+    check_faulty = getattr(be, "check_faulty", None)
+    count = 0
+    for index, names in zip(indices, jobs):
+        for name in names:
+            try:
+                pub = SamplerPub.coerce((pubs[name], None, int(shots[name])))
+                validate_classical_registers([pub])
+                validate_rzz_pubs([pub])
+                if target is not None and target.num_qubits is not None:
+                    validate_isa_circuits([pub.circuit], target)
+                if callable(check_faulty):
+                    check_faulty(pub.circuit)
+            except Exception as exc:
+                raise ValueError(
+                    f"Runtime input preflight, job {index}, pub {name!r}: {exc}") from exc
+            count += 1
+    return {"jobs": len(jobs), "pubs": count}
+
+
 def _sampler(mode, fractional: bool, shots_default: int | None = None):
     from qiskit_ibm_runtime import SamplerV2
 
@@ -741,6 +776,7 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
     indices = list(range(job_offset, job_offset + len(jobs))) if job_indices is None else list(job_indices)
     if len(indices) != len(jobs):
         raise ValueError("job_indices must have one entry per job")
+    preflight_runtime(mode, pubs, shots, jobs, job_indices=indices)
     os.makedirs(out_dir, exist_ok=True)
     fractional = basis == "rzz"
     real = T.is_real_backend(mode)

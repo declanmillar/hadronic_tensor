@@ -1452,6 +1452,17 @@ def _cache_paths(cache_dir, key):
     return d / f"{key}.qpy", d / f"{key}.json"
 
 
+def _fold_bound_rzz(qc: QuantumCircuit) -> QuantumCircuit:
+    # Preparation circuits are already bound. Parametric evolution steps
+    # are folded by _make_block/tail_block/assign_block after assignment.
+    if not qc.parameters and "rzz" in qc.count_ops():
+        out = fold_rzz(qc)
+        # FoldRzzAngle changes gates only; PassManager drops this metadata.
+        out._layout = qc.layout
+        return out
+    return qc
+
+
 def transpile_isa(qc: QuantumCircuit, be, initial_layout=None, opt_level: int = 3,
                   seed: int = SEED, cache_dir=None, log=None, tag: str = "", routing: str | None = None):
     """O-level transpile with an optional initial layout, qpy-cached by a
@@ -1470,12 +1481,13 @@ def transpile_isa(qc: QuantumCircuit, be, initial_layout=None, opt_level: int = 
             with open(json_path) as f:
                 meta = json.load(f)
             _log(f"{tag}: cache hit {key}", log)
-            return isa, meta["final_layout"], 0.0
+            # Old caches can contain unrestricted preparation RZZ angles.
+            return _fold_bound_rzz(isa), meta["final_layout"], 0.0
     kw = {"routing_method": routing} if routing else {}
     pm = generate_preset_pass_manager(backend=be, optimization_level=opt_level,
                                       seed_transpiler=seed, initial_layout=initial_layout, **kw)
     t0 = time.time()
-    isa = pm.run(qc)
+    isa = _fold_bound_rzz(pm.run(qc))
     dt = time.time() - t0
     fl = list(isa.layout.final_index_layout())
     _log(f"{tag}: transpiled in {dt:.1f}s, {count_2q(isa)} 2q", log)

@@ -367,7 +367,9 @@ def test_budget_guard_cancels_an_overbudget_refreshed_estimate(estimate_clock):
     assert job.cancelled is True and estimate_clock.sleeps == [5.0]
 
 
-def _submit_args(tmp_path, n_jobs=3):
+def _submit_args(tmp_path, monkeypatch, n_jobs=3):
+    # Budget tests stub input validation; Runtime input regressions live separately.
+    monkeypatch.setattr(CP, "preflight_runtime", lambda *args, **kwargs: None)
     lat, emb = Lattice(4), T.choose_embedding(T.resolve_backend("grid:4x5"), 4, 1)
     names = [f"p{i}" for i in range(n_jobs)]
     pubs = {n: None for n in names}
@@ -380,7 +382,7 @@ def test_real_submission_refuses_an_unfittable_campaign_before_job_zero(tmp_path
     is priced before the first one is sent."""
     monkeypatch.setattr(T, "is_real_backend", lambda be: True)
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: pytest.fail("submitted despite the guard"))
-    kw = _submit_args(tmp_path)
+    kw = _submit_args(tmp_path, monkeypatch)
     with pytest.raises(CP.BudgetError, match="only 600 QPU s remain|remain"):
         CP.submit("dev", service=_StubService(600.0), est_seconds=10000.0, batch=False,
                   log=None, **kw)
@@ -410,7 +412,7 @@ def test_guard_stops_the_loop_and_still_records_the_cancelled_job(tmp_path, monk
     monkeypatch.setattr(T, "is_real_backend", lambda be: True)
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     recs = CP.submit("dev", service=_StubService(10800.0), est_seconds=10.0, batch=False,
-                     log=messages.append, **selection, **_submit_args(tmp_path))
+                     log=messages.append, **selection, **_submit_args(tmp_path, monkeypatch))
     assert recs == [] and len(sent) == 1                      # stopped, did not send the rest
     metas = sorted(tmp_path.glob("htq_job_*.json"))
     assert len(metas) == 1
@@ -433,7 +435,7 @@ def test_strict_submission_continues_once_estimates_arrive(tmp_path, monkeypatch
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     recs = CP.submit("dev", service=_RefreshingService(10800.0, [100.0] * 3),
                      est_seconds=10.0, batch=False, job_indices=[7, 9, 12],
-                     **_submit_args(tmp_path))
+                     **_submit_args(tmp_path, monkeypatch))
     assert len(recs) == 3 and not any(job.cancelled for job in sent)
     assert [r["meta"]["job_index"] for r in recs] == [7, 9, 12]
     assert all(r["meta"]["guard"] == CP.GUARD_OK for r in recs)
@@ -457,7 +459,7 @@ def test_strict_submission_timeout_records_cancelled_job_and_exact_resume(
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     recs = CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
                      batch=False, job_indices=indices, log=messages.append,
-                     **_submit_args(tmp_path))
+                     **_submit_args(tmp_path, monkeypatch))
     assert len(recs) == stop_at and len(sent) == stop_at + 1
     assert estimate_clock.elapsed == 60.0 and sent[-1].cancelled is True
     meta = json.loads((tmp_path / f"htq_job_pending-{stop_at}.json").read_text())
@@ -484,7 +486,7 @@ def test_submission_persists_job_id_before_interruptible_wait(tmp_path, monkeypa
     monkeypatch.setattr(estimate_clock, "sleep", interrupt)
     with pytest.raises(KeyboardInterrupt):
         CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
-                  batch=False, **_submit_args(tmp_path))
+                  batch=False, **_submit_args(tmp_path, monkeypatch))
     assert len(sent) == 1 and sent[0].cancelled is False
     meta = json.loads((tmp_path / "htq_job_pending-0.json").read_text())
     assert meta["job_id"] == "pending-0" and meta["job_index"] == 0
@@ -514,7 +516,7 @@ def test_submission_stops_with_uncertain_cancellation_without_retry_advice(
     with pytest.raises(CP.BudgetError, match="Check its status before retrying") as exc:
         CP.submit("dev", service=_RefreshingService(10800.0), est_seconds=10.0,
                   batch=False, estimate_wait=7.0, log=messages.append,
-                  **_submit_args(tmp_path))
+                  **_submit_args(tmp_path, monkeypatch))
     assert len(sent) == 1 and sent[0].cancelled is False
     meta = json.loads((tmp_path / "htq_job_uncertain-0.json").read_text())
     assert meta["job_id"] == "uncertain-0" and meta["job_index"] == 0
@@ -538,7 +540,7 @@ def test_nonstrict_submission_keeps_missing_estimates_without_waiting(
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
     service = _RefreshingService(10800.0)
     recs = CP.submit("dev", service=service, est_seconds=10.0, batch=False,
-                     strict_guard=False, **_submit_args(tmp_path))
+                     strict_guard=False, **_submit_args(tmp_path, monkeypatch))
     assert len(recs) == 3 and not any(job.cancelled for job in sent)
     assert all(r["meta"]["guard"] == CP.GUARD_UNVERIFIABLE for r in recs)
     assert estimate_clock.sleeps == [] and service.job_requests == []
@@ -550,7 +552,7 @@ def test_local_submission_needs_no_allocation_and_keeps_every_job(tmp_path, monk
             return _StubJob(est=None, jid=f"loc-{id(pubs) % 97}")
 
     monkeypatch.setattr(CP, "_sampler", lambda *a, **k: _Sampler())
-    recs = CP.submit("fake", log=None, **_submit_args(tmp_path))
+    recs = CP.submit("fake", log=None, **_submit_args(tmp_path, monkeypatch))
     assert len(recs) == 3 and all(r["meta"]["guard"] == CP.GUARD_OK for r in recs)
     assert all(r["meta"]["cancelled"] is False for r in recs)
 
