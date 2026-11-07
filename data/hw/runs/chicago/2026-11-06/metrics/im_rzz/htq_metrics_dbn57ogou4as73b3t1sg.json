@@ -1,0 +1,22 @@
+{
+  "job_id": "dbn57ogou4as73b3t1sg",
+  "backend": "ibm_chicago",
+  "status": "DONE",
+  "metrics": {
+    "caller": "qiskit_ibm_runtime~sampler.py",
+    "qiskit_version": "qiskit_ibm_runtime-0.47.0,qiskit-2.5.0*,qiskit_aer-0.17.2*",
+    "timestamps": {
+      "created": "2026-11-06T22:25:38.842468Z",
+      "finished": "2026-11-06T22:45:46.429739Z",
+      "running": "2026-11-06T22:40:00.453482Z"
+    },
+    "bss": {
+      "seconds": 12
+    },
+    "usage": {
+      "quantum_seconds": 12,
+      "seconds": 12,
+      "status": "complete"
+    }
+  }
+}

@@ -11,7 +11,7 @@ surprise on a paid device.
       --target fake:nighthawk --level fast --record data/hw/acceptance.json
 
 Levels: ``fast`` runs A0-A5 (environment, target, embedding, card/grid
-coverage, circuits, plan) in minutes; ``full`` adds A6 check and A7
+coverage, circuits, plan, Runtime input checks) in minutes; ``full`` adds A6 check and A7
 rehearse+analyze per card, and is what bundle requires.
 """
 
@@ -27,7 +27,7 @@ from . import record as R
 from . import target as T
 from .model import Lattice
 
-STEPS_FAST = ("env", "target", "embedding", "cards", "circuits", "plan")
+STEPS_FAST = ("env", "target", "embedding", "cards", "circuits", "plan", "runtime")
 STEPS_FULL = STEPS_FAST + ("check", "rehearse")
 
 
@@ -358,7 +358,7 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
     res.extra["cards"] = coverage
 
     # ---- A4 circuits, A5 plan ------------------------------------------
-    pubs = info = None
+    pubs = info = plan = jobs = None
     if emb is not None and "circuits" in steps:
         try:
             pubs, info, bundles = CP.build_pub_circuits(be, lat, None, emb, specs, basis,
@@ -391,8 +391,20 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         except Exception as e:
             res.add("plan", R.FAIL, f"{type(e).__name__}: {e}")
 
+    # Check the full planned manifest, including slices omitted by rehearsal.
+    runtime_ok = False
+    if plan is not None and jobs is not None and "runtime" in steps:
+        try:
+            checked = CP.preflight_runtime(be, pubs, plan["shots"], jobs)
+            res.add("runtime", R.PASS,
+                    f"{checked['pubs']} pubs in {checked['jobs']} jobs pass Runtime input checks",
+                    **checked)
+            runtime_ok = True
+        except Exception as e:
+            res.add("runtime", R.FAIL, f"{type(e).__name__}: {e}")
+
     # ---- A6 check -------------------------------------------------------
-    if "check" in steps and emb is not None:
+    if "check" in steps and emb is not None and runtime_ok:
         from . import sim as S
         try:
             # t = 0 and one full step, plus whatever the rehearsal will sample
@@ -408,7 +420,7 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
             res.add("check", R.FAIL, f"{type(e).__name__}: {str(e)[:200]}")
 
     # ---- A7 rehearse and analyze -----------------------------------------
-    if "rehearse" in steps and emb is not None and pubs is not None:
+    if "rehearse" in steps and emb is not None and pubs is not None and runtime_ok:
         import shutil
         import tempfile
         from . import sim as S

@@ -1,0 +1,403 @@
+[   5.0s] operational graph: 4 qubit(s) and 24 edge(s) excluded (188/218 edges live)
+[   5.0s] embedding avoids 4 qubit(s) and 24 coupler(s): {'q24': 'readout 0.0533', 'q64': 'readout 0.0559', 'q67': 'readout 0.0758', 'q73': 'readout 0.076', 'e(2, 12)': 'rzz error 1 (uncalibrated)', 'e(5, 15)': 'cz error 0.0216', 'e(10, 11)': 'rzz error 1 (uncalibrated)', 'e(14, 24)': 'rzz error 0.0255', 'e(23, 24)': 'rzz error 1 (uncalibrated)', 'e(24, 25)': 'rzz error 0.0263', 'e(24, 34)': 'rzz error 1 (uncalibrated)', 'e(26, 27)': 'rzz error 1 (uncalibrated)', 'e(54, 55)': 'rzz error 1 (uncalibrated)', 'e(57, 67)': 'rzz error 1 (uncalibrated)', 'e(63, 64)': 'rzz error 1 (uncalibrated)', 'e(64, 65)': 'rzz error 1 (uncalibrated)', 'e(66, 67)': 'rzz error 0.193', 'e(66, 76)': 'rzz error 1 (uncalibrated)', 'e(67, 68)': 'rzz error 1 (uncalibrated)', 'e(67, 77)': 'rzz error 1 (uncalibrated)', 'e(75, 76)': 'rzz error 1 (uncalibrated)', 'e(76, 77)': 'rzz error 1 (uncalibrated)', 'e(76, 86)': 'rzz error 0.0468', 'e(94, 104)': 'rzz error 0.0324', 'e(103, 104)': 'rzz error 0.0263', 'e(104, 105)': 'rzz error 0.0252', 'e(104, 114)': 'rzz error 0.0403', 'e(115, 116)': 'cz error 0.0288'}
+[  16.6s] grow_cycles: 45 cycle(s) of length 50 in 11.5s (142845 expansions, stopped by exhausted)
+[  16.7s] embedding ladder: site 24 -> q107, ancilla -> q117, 101 edges (score 1.485, 8 candidates)
+[  16.7s] base[J0,rzz]: cache hit 88ba741abc3a13c01f64e3d1
+[  16.7s] step[rzz,rxxryy]: cache hit 6fef8591a7f7a52948e43324
+[  20.8s] base[J0,rzz]: cache hit b458aed53aebeafba5b17c93
+[  20.8s] step[rzz,rxxryy]: cache hit 6fef8591a7f7a52948e43324
+[  25.0s] base[plain,rzz]: cache hit efd7ade3f155cc64c467fc99
+[  25.0s] step[rzz,rxxryy]: cache hit 6fef8591a7f7a52948e43324
+[  40.2s] base[J0,rzz]: cache hit 55c91a41206bbfeea367db4d
+[  40.2s] step[rzz,rxxryy]: cache hit 408384e00775b4d38c12ab1c
+[  44.5s] base[J0,rzz]: cache hit 1fc357019668b22c0c0657d1
+[  44.5s] step[rzz,rxxryy]: cache hit 408384e00775b4d38c12ab1c
+[  48.9s] base[J1a,rzz]: cache hit 08eda5a9e824bb770f3c96bf
+[  48.9s] step[rzz,rxxryy]: cache hit 408384e00775b4d38c12ab1c
+[  53.0s] base[J1b,rzz]: cache hit 08fce440ee8665344d8017ec
+[  53.0s] step[rzz,rxxryy]: cache hit 408384e00775b4d38c12ab1c
+[  57.1s] base[plain,rzz]: cache hit b988f91d3aa4b3b992b6b9b7
+[  57.2s] step[rzz,rxxryy]: cache hit 408384e00775b4d38c12ab1c
+REAL submission to ibm_chicago (120q): 127 jobs, 46380000 shots
+[ 113.0s] budget preflight: campaign ~2876 s vs remaining 440533 s (1% of it)
+[ 113.8s] Batch 9aa39935-45ca-4093-9d5d-45ee11431f3c open on ibm_chicago
+[ 115.5s] job 0: dbn64kgqtr0c73ace8v0 with 7 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t0.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t0.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t0.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t0.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t0.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t0.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t0.0_Z']
+[ 116.2s] budget: estimated None s, remaining 440533.0 s
+[ 116.2s] estimate for dbn64kgqtr0c73ace8v0 still unavailable after 0 s wait
+[ 117.6s] job 1: dbn64l5t7fqc73aj0f0g with 10 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_t0.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_t0.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:plain_t0.0_Z']
+[ 118.5s] budget: estimated None s, remaining 440533.0 s
+[ 118.5s] estimate for dbn64l5t7fqc73aj0f0g still unavailable after 0 s wait
+[ 119.5s] job 2: dbn64lgqtr0c73ace90g with 3 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.0_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.0_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.0_XYB']
+[ 120.3s] budget: estimated None s, remaining 440533.0 s
+[ 120.3s] estimate for dbn64lgqtr0c73ace90g still unavailable after 0 s wait
+[ 121.6s] job 3: dbn64m0ou4as73b3ufig with 9 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.0_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.0_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.0_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.0_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.0_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.0_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.0_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.0_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.0_XYB']
+[ 122.0s] budget: estimated None s, remaining 440533.0 s
+[ 122.0s] estimate for dbn64m0ou4as73b3ufig still unavailable after 0 s wait
+[ 123.1s] job 4: dbn64mgqtr0c73ace92g with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t0.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t0.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m0.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t0.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m0.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t0.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t0.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m0.5_XYA']
+[ 124.0s] budget: estimated None s, remaining 440533.0 s
+[ 124.0s] estimate for dbn64mgqtr0c73ace92g still unavailable after 0 s wait
+[ 125.0s] job 5: dbn64n0ou4as73b3ufk0 with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t0.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t0.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m0.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t1.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t1.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m1.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t1.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m1.0_Z']
+[ 125.4s] budget: estimated None s, remaining 440533.0 s
+[ 125.4s] estimate for dbn64n0ou4as73b3ufk0 still unavailable after 0 s wait
+[ 126.4s] job 6: dbn64ndt7fqc73aj0f3g with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t1.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t1.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m1.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t1.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t1.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m1.0_XYB']
+[ 126.7s] budget: estimated None s, remaining 440533.0 s
+[ 126.7s] estimate for dbn64ndt7fqc73aj0f3g still unavailable after 0 s wait
+[ 127.8s] job 7: dbn64noou4as73b3ufm0 with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t1.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t1.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m1.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t1.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m1.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t1.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t1.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m1.5_XYA']
+[ 128.5s] budget: estimated None s, remaining 440533.0 s
+[ 128.5s] estimate for dbn64noou4as73b3ufm0 still unavailable after 0 s wait
+[ 129.6s] job 8: dbn64o8ou4as73b3ufng with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t1.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t1.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m1.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t2.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t2.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m2.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t2.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m2.0_Z']
+[ 130.0s] budget: estimated None s, remaining 440533.0 s
+[ 130.0s] estimate for dbn64o8ou4as73b3ufng still unavailable after 0 s wait
+[ 131.1s] job 9: dbn64ok4148s7390cq70 with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t2.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t2.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m2.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t2.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t2.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m2.0_XYB']
+[ 131.7s] budget: estimated None s, remaining 440533.0 s
+[ 131.7s] estimate for dbn64ok4148s7390cq70 still unavailable after 0 s wait
+[ 132.8s] job 10: dbn64p5t7fqc73aj0f60 with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t2.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t2.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m2.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t2.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m2.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t2.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t2.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m2.5_XYA']
+[ 133.4s] budget: estimated None s, remaining 440533.0 s
+[ 133.4s] estimate for dbn64p5t7fqc73aj0f60 still unavailable after 0 s wait
+[ 134.7s] job 11: dbn64pgou4as73b3ufqg with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t2.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t2.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m2.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t3.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t3.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m3.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t3.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m3.0_Z']
+[ 135.3s] budget: estimated None s, remaining 440533.0 s
+[ 135.3s] estimate for dbn64pgou4as73b3ufqg still unavailable after 0 s wait
+[ 136.5s] job 12: dbn64ps4148s7390cqag with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t3.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t3.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m3.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t3.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t3.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m3.0_XYB']
+[ 136.9s] budget: estimated None s, remaining 440533.0 s
+[ 136.9s] estimate for dbn64ps4148s7390cqag still unavailable after 0 s wait
+[ 138.3s] job 13: dbn64qc4148s7390cqbg with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t3.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t3.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m3.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t3.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m3.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t3.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t3.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m3.5_XYA']
+[ 138.7s] budget: estimated None s, remaining 440533.0 s
+[ 138.7s] estimate for dbn64qc4148s7390cqbg still unavailable after 0 s wait
+[ 139.8s] job 14: dbn64qoou4as73b3ufv0 with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t3.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t3.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m3.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t4.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t4.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m4.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t4.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m4.0_Z']
+[ 140.3s] budget: estimated None s, remaining 440533.0 s
+[ 140.3s] estimate for dbn64qoou4as73b3ufv0 still unavailable after 0 s wait
+[ 141.6s] job 15: dbn64r5t7fqc73aj0fb0 with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t4.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t4.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m4.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t4.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t4.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m4.0_XYB']
+[ 142.0s] budget: estimated None s, remaining 440533.0 s
+[ 142.0s] estimate for dbn64r5t7fqc73aj0fb0 still unavailable after 0 s wait
+[ 143.4s] job 16: dbn64rlt7fqc73aj0fc0 with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t4.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t4.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m4.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t4.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m4.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t4.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t4.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m4.5_XYA']
+[ 144.0s] budget: estimated None s, remaining 440533.0 s
+[ 144.0s] estimate for dbn64rlt7fqc73aj0fc0 still unavailable after 0 s wait
+[ 145.4s] job 17: dbn64s5t7fqc73aj0fe0 with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t4.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t4.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m4.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t5.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t5.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m5.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t5.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m5.0_Z']
+[ 145.7s] budget: estimated None s, remaining 440533.0 s
+[ 145.7s] estimate for dbn64s5t7fqc73aj0fe0 still unavailable after 0 s wait
+[ 147.1s] job 18: dbn64sgqtr0c73ace9c0 with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t5.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t5.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m5.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t5.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t5.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m5.0_XYB']
+[ 147.5s] budget: estimated None s, remaining 440533.0 s
+[ 147.5s] estimate for dbn64sgqtr0c73ace9c0 still unavailable after 0 s wait
+[ 149.4s] job 19: dbn64t5t7fqc73aj0ffg with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t5.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t5.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m5.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t5.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m5.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t5.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t5.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m5.5_XYA']
+[ 149.8s] budget: estimated None s, remaining 440533.0 s
+[ 149.8s] estimate for dbn64t5t7fqc73aj0ffg still unavailable after 0 s wait
+[ 151.2s] job 20: dbn64tk4148s7390cqhg with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t5.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t5.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m5.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t6.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t6.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m6.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t6.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m6.0_Z']
+[ 151.6s] budget: estimated None s, remaining 440533.0 s
+[ 151.6s] estimate for dbn64tk4148s7390cqhg still unavailable after 0 s wait
+[ 153.1s] job 21: dbn64u0qtr0c73ace9fg with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t6.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t6.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m6.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t6.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t6.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m6.0_XYB']
+[ 153.5s] budget: estimated None s, remaining 440533.0 s
+[ 153.5s] estimate for dbn64u0qtr0c73ace9fg still unavailable after 0 s wait
+[ 155.1s] job 22: dbn64uk4148s7390cqjg with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t6.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t6.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m6.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t6.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m6.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t6.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t6.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m6.5_XYA']
+[ 155.5s] budget: estimated None s, remaining 440533.0 s
+[ 155.5s] estimate for dbn64uk4148s7390cqjg still unavailable after 0 s wait
+[ 157.2s] job 23: dbn64v0ou4as73b3ug5g with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t6.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t6.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m6.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t7.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t7.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m7.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t7.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m7.0_Z']
+[ 157.5s] budget: estimated None s, remaining 440533.0 s
+[ 157.5s] estimate for dbn64v0ou4as73b3ug5g still unavailable after 0 s wait
+[ 158.9s] job 24: dbn64vgou4as73b3ug60 with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t7.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t7.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m7.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t7.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t7.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m7.0_XYB']
+[ 159.3s] budget: estimated None s, remaining 440533.0 s
+[ 159.3s] estimate for dbn64vgou4as73b3ug60 still unavailable after 0 s wait
+[ 161.1s] job 25: dbn65044148s7390cqog with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t7.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t7.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m7.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t7.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m7.5_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t7.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t7.5_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m7.5_XYA']
+[ 161.5s] budget: estimated None s, remaining 440533.0 s
+[ 161.5s] estimate for dbn65044148s7390cqog still unavailable after 0 s wait
+[ 163.3s] job 26: dbn650gqtr0c73ace9jg with 8 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t7.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t7.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m7.5_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t8.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t8.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m8.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_t8.0_Z', 'prod-bridge.prod_k1.26_s0.75_ns50:plain_m8.0_Z']
+[ 163.6s] budget: estimated None s, remaining 440533.0 s
+[ 163.6s] estimate for dbn650gqtr0c73ace9jg still unavailable after 0 s wait
+[ 165.1s] job 27: dbn6510qtr0c73ace9k0 with 6 pubs ['prod-bridge.prod_k1.26_s0.75_ns50:j0_t8.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t8.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m8.0_XYA', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_t8.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0d_t8.0_XYB', 'prod-bridge.prod_k1.26_s0.75_ns50:j0_m8.0_XYB']
+[ 165.6s] budget: estimated None s, remaining 440533.0 s
+[ 165.6s] estimate for dbn6510qtr0c73ace9k0 still unavailable after 0 s wait
+[ 166.6s] job 28: dbn651k4148s7390cqr0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t0.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m0.5_Z']
+[ 167.0s] budget: estimated None s, remaining 440533.0 s
+[ 167.0s] estimate for dbn651k4148s7390cqr0 still unavailable after 0 s wait
+[ 167.9s] job 29: dbn651oou4as73b3uga0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t0.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m0.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m0.5_XYA']
+[ 168.2s] budget: estimated None s, remaining 440533.0 s
+[ 168.2s] estimate for dbn651oou4as73b3uga0 still unavailable after 0 s wait
+[ 169.3s] job 30: dbn6525t7fqc73aj0flg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t0.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m0.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m0.5_XYB']
+[ 169.6s] budget: estimated None s, remaining 440533.0 s
+[ 169.6s] estimate for dbn6525t7fqc73aj0flg still unavailable after 0 s wait
+[ 170.6s] job 31: dbn652gou4as73b3ugag with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0_m0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:plain_t0.5_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:plain_m0.5_Z_dt0.25']
+[ 171.0s] budget: estimated None s, remaining 440533.0 s
+[ 171.0s] estimate for dbn652gou4as73b3ugag still unavailable after 0 s wait
+[ 172.0s] job 32: dbn652s4148s7390cqt0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.5_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.5_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.5_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t0.5_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0_m0.5_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m0.5_XYA_dt0.25']
+[ 172.5s] budget: estimated None s, remaining 440533.0 s
+[ 172.5s] estimate for dbn652s4148s7390cqt0 still unavailable after 0 s wait
+[ 173.6s] job 33: dbn6535t7fqc73aj0fmg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t0.5_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t0.5_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t0.5_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t0.5_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0_m0.5_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m0.5_XYB_dt0.25']
+[ 174.0s] budget: estimated None s, remaining 440533.0 s
+[ 174.0s] estimate for dbn6535t7fqc73aj0fmg still unavailable after 0 s wait
+[ 175.2s] job 34: dbn653gqtr0c73ace9n0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t1.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m1.0_Z']
+[ 175.6s] budget: estimated None s, remaining 440533.0 s
+[ 175.6s] estimate for dbn653gqtr0c73ace9n0 still unavailable after 0 s wait
+[ 176.8s] job 35: dbn65444148s7390cqug with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.0_XYA']
+[ 177.2s] budget: estimated None s, remaining 440533.0 s
+[ 177.2s] estimate for dbn65444148s7390cqug still unavailable after 0 s wait
+[ 178.2s] job 36: dbn654c4148s7390cqvg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.0_XYB']
+[ 178.5s] budget: estimated None s, remaining 440533.0 s
+[ 178.5s] estimate for dbn654c4148s7390cqvg still unavailable after 0 s wait
+[ 179.8s] job 37: dbn654oqtr0c73ace9q0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:plain_t1.0_Z_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:plain_m1.0_Z_dt0.25']
+[ 180.3s] budget: estimated None s, remaining 440533.0 s
+[ 180.3s] estimate for dbn654oqtr0c73ace9q0 still unavailable after 0 s wait
+[ 181.7s] job 38: dbn6555t7fqc73aj0fq0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.0_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.0_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.0_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.0_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.0_XYA_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.0_XYA_dt0.25']
+[ 182.1s] budget: estimated None s, remaining 440533.0 s
+[ 182.1s] estimate for dbn6555t7fqc73aj0fq0 still unavailable after 0 s wait
+[ 183.7s] job 39: dbn655k4148s7390cr20 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.0_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.0_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.0_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.0_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.0_XYB_dt0.25', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.0_XYB_dt0.25']
+[ 184.1s] budget: estimated None s, remaining 440533.0 s
+[ 184.1s] estimate for dbn655k4148s7390cr20 still unavailable after 0 s wait
+[ 185.3s] job 40: dbn6560ou4as73b3ugeg with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t1.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m1.5_Z']
+[ 185.7s] budget: estimated None s, remaining 440533.0 s
+[ 185.7s] estimate for dbn6560ou4as73b3ugeg still unavailable after 0 s wait
+[ 186.7s] job 41: dbn656lt7fqc73aj0fsg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.5_XYA']
+[ 187.2s] budget: estimated None s, remaining 440533.0 s
+[ 187.2s] estimate for dbn656lt7fqc73aj0fsg still unavailable after 0 s wait
+[ 188.4s] job 42: dbn656oou4as73b3ugg0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t1.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t1.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t1.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t1.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m1.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m1.5_XYB']
+[ 188.9s] budget: estimated None s, remaining 440533.0 s
+[ 188.9s] estimate for dbn656oou4as73b3ugg0 still unavailable after 0 s wait
+[ 190.0s] job 43: dbn657c4148s7390cr50 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t2.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m2.0_Z']
+[ 190.7s] budget: estimated None s, remaining 440533.0 s
+[ 190.7s] estimate for dbn657c4148s7390cr50 still unavailable after 0 s wait
+[ 192.0s] job 44: dbn657tt7fqc73aj0fug with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t2.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t2.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t2.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t2.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m2.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m2.0_XYA']
+[ 192.4s] budget: estimated None s, remaining 440533.0 s
+[ 192.4s] estimate for dbn657tt7fqc73aj0fug still unavailable after 0 s wait
+[ 193.3s] job 45: dbn6580ou4as73b3ugig with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t2.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t2.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t2.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t2.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m2.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m2.0_XYB']
+[ 193.6s] budget: estimated None s, remaining 440533.0 s
+[ 193.6s] estimate for dbn6580ou4as73b3ugig still unavailable after 0 s wait
+[ 194.8s] job 46: dbn658gou4as73b3ugj0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t2.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m2.5_Z']
+[ 195.2s] budget: estimated None s, remaining 440533.0 s
+[ 195.2s] estimate for dbn658gou4as73b3ugj0 still unavailable after 0 s wait
+[ 196.4s] job 47: dbn658oqtr0c73acea0g with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t2.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t2.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t2.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t2.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m2.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m2.5_XYA']
+[ 197.2s] budget: estimated None s, remaining 440533.0 s
+[ 197.2s] estimate for dbn658oqtr0c73acea0g still unavailable after 0 s wait
+[ 198.3s] job 48: dbn659dt7fqc73aj0g1g with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t2.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t2.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t2.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t2.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m2.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m2.5_XYB']
+[ 198.9s] budget: estimated None s, remaining 440533.0 s
+[ 198.9s] estimate for dbn659dt7fqc73aj0g1g still unavailable after 0 s wait
+[ 200.3s] job 49: dbn659oou4as73b3uglg with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t3.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m3.0_Z']
+[ 200.7s] budget: estimated None s, remaining 440533.0 s
+[ 200.7s] estimate for dbn659oou4as73b3uglg still unavailable after 0 s wait
+[ 201.8s] job 50: dbn65a8qtr0c73acea30 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t3.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t3.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t3.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t3.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m3.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m3.0_XYA']
+[ 202.3s] budget: estimated None s, remaining 440533.0 s
+[ 202.3s] estimate for dbn65a8qtr0c73acea30 still unavailable after 0 s wait
+[ 203.6s] job 51: dbn65agou4as73b3ugo0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t3.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t3.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t3.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t3.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m3.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m3.0_XYB']
+[ 204.1s] budget: estimated None s, remaining 440533.0 s
+[ 204.1s] estimate for dbn65agou4as73b3ugo0 still unavailable after 0 s wait
+[ 205.5s] job 52: dbn65b0qtr0c73acea4g with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t3.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m3.5_Z']
+[ 205.9s] budget: estimated None s, remaining 440533.0 s
+[ 205.9s] estimate for dbn65b0qtr0c73acea4g still unavailable after 0 s wait
+[ 207.5s] job 53: dbn65bk4148s7390crcg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t3.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t3.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t3.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t3.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m3.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m3.5_XYA']
+[ 207.9s] budget: estimated None s, remaining 440533.0 s
+[ 207.9s] estimate for dbn65bk4148s7390crcg still unavailable after 0 s wait
+[ 209.1s] job 54: dbn65c5t7fqc73aj0g70 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t3.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t3.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t3.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t3.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m3.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m3.5_XYB']
+[ 209.5s] budget: estimated None s, remaining 440533.0 s
+[ 209.5s] estimate for dbn65c5t7fqc73aj0g70 still unavailable after 0 s wait
+[ 211.0s] job 55: dbn65clt7fqc73aj0g80 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t4.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m4.0_Z']
+[ 211.4s] budget: estimated None s, remaining 440533.0 s
+[ 211.4s] estimate for dbn65clt7fqc73aj0g80 still unavailable after 0 s wait
+[ 212.9s] job 56: dbn65d0qtr0c73acea70 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t4.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t4.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t4.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t4.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m4.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m4.0_XYA']
+[ 213.3s] budget: estimated None s, remaining 440533.0 s
+[ 213.3s] estimate for dbn65d0qtr0c73acea70 still unavailable after 0 s wait
+[ 214.5s] job 57: dbn65dc4148s7390crg0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t4.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t4.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t4.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t4.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m4.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m4.0_XYB']
+[ 215.0s] budget: estimated None s, remaining 440533.0 s
+[ 215.0s] estimate for dbn65dc4148s7390crg0 still unavailable after 0 s wait
+[ 216.5s] job 58: dbn65ds4148s7390crh0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t4.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m4.5_Z']
+[ 216.8s] budget: estimated None s, remaining 440533.0 s
+[ 216.8s] estimate for dbn65ds4148s7390crh0 still unavailable after 0 s wait
+[ 218.1s] job 59: dbn65e8ou4as73b3ugug with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t4.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t4.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t4.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t4.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m4.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m4.5_XYA']
+[ 218.5s] budget: estimated None s, remaining 440533.0 s
+[ 218.5s] estimate for dbn65e8ou4as73b3ugug still unavailable after 0 s wait
+[ 219.7s] job 60: dbn65ett7fqc73aj0gdg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t4.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t4.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t4.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t4.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m4.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m4.5_XYB']
+[ 220.3s] budget: estimated None s, remaining 440533.0 s
+[ 220.3s] estimate for dbn65ett7fqc73aj0gdg still unavailable after 0 s wait
+[ 222.0s] job 61: dbn65fc4148s7390crj0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t5.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m5.0_Z']
+[ 222.4s] budget: estimated None s, remaining 440533.0 s
+[ 222.4s] estimate for dbn65fc4148s7390crj0 still unavailable after 0 s wait
+[ 223.8s] job 62: dbn65foou4as73b3uh10 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t5.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t5.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t5.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t5.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m5.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m5.0_XYA']
+[ 224.3s] budget: estimated None s, remaining 440533.0 s
+[ 224.3s] estimate for dbn65foou4as73b3uh10 still unavailable after 0 s wait
+[ 226.1s] job 63: dbn65g0ou4as73b3uh20 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t5.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t5.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t5.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t5.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m5.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m5.0_XYB']
+[ 226.4s] budget: estimated None s, remaining 440533.0 s
+[ 226.4s] estimate for dbn65g0ou4as73b3uh20 still unavailable after 0 s wait
+[ 228.3s] job 64: dbn65gtt7fqc73aj0gg0 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t5.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m5.5_Z']
+[ 228.7s] budget: estimated None s, remaining 440533.0 s
+[ 228.7s] estimate for dbn65gtt7fqc73aj0gg0 still unavailable after 0 s wait
+[ 230.1s] job 65: dbn65h8qtr0c73aceaeg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t5.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t5.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t5.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t5.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m5.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m5.5_XYA']
+[ 230.6s] budget: estimated None s, remaining 440533.0 s
+[ 230.6s] estimate for dbn65h8qtr0c73aceaeg still unavailable after 0 s wait
+[ 232.0s] job 66: dbn65hoou4as73b3uh40 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t5.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t5.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t5.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t5.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m5.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m5.5_XYB']
+[ 232.4s] budget: estimated None s, remaining 440533.0 s
+[ 232.4s] estimate for dbn65hoou4as73b3uh40 still unavailable after 0 s wait
+[ 234.1s] job 67: dbn65i8qtr0c73aceagg with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t6.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m6.0_Z']
+[ 234.5s] budget: estimated None s, remaining 440533.0 s
+[ 234.5s] estimate for dbn65i8qtr0c73aceagg still unavailable after 0 s wait
+[ 235.9s] job 68: dbn65itt7fqc73aj0gjg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t6.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t6.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t6.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t6.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m6.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m6.0_XYA']
+[ 236.2s] budget: estimated None s, remaining 440533.0 s
+[ 236.2s] estimate for dbn65itt7fqc73aj0gjg still unavailable after 0 s wait
+[ 237.5s] job 69: dbn65j44148s7390crog with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t6.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t6.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t6.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t6.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m6.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m6.0_XYB']
+[ 237.8s] budget: estimated None s, remaining 440533.0 s
+[ 237.8s] estimate for dbn65j44148s7390crog still unavailable after 0 s wait
+[ 238.9s] job 70: dbn65jgqtr0c73aceaig with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m0.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m0.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m0.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m0.75_Z']
+[ 239.2s] budget: estimated None s, remaining 440533.0 s
+[ 239.2s] estimate for dbn65jgqtr0c73aceaig still unavailable after 0 s wait
+[ 240.2s] job 71: dbn65js4148s7390crpg with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m0.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t0.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m0.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t1.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m1.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t1.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m1.25_XYA']
+[ 240.7s] budget: estimated None s, remaining 440533.0 s
+[ 240.7s] estimate for dbn65js4148s7390crpg still unavailable after 0 s wait
+[ 241.7s] job 72: dbn65k8ou4as73b3uh6g with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t1.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m1.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t1.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m1.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t1.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m1.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t1.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m1.75_XYB']
+[ 242.3s] budget: estimated None s, remaining 440533.0 s
+[ 242.3s] estimate for dbn65k8ou4as73b3uh6g still unavailable after 0 s wait
+[ 243.5s] job 73: dbn65klt7fqc73aj0gng with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t2.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m2.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t2.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m2.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t2.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m2.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t2.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m2.75_Z']
+[ 243.9s] budget: estimated None s, remaining 440533.0 s
+[ 243.9s] estimate for dbn65klt7fqc73aj0gng still unavailable after 0 s wait
+[ 245.1s] job 74: dbn65l0qtr0c73aceamg with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t2.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m2.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t2.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m2.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t3.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m3.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t3.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m3.25_XYA']
+[ 245.5s] budget: estimated None s, remaining 440533.0 s
+[ 245.5s] estimate for dbn65l0qtr0c73aceamg still unavailable after 0 s wait
+[ 246.7s] job 75: dbn65l8ou4as73b3uh9g with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t3.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m3.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t3.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m3.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t3.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m3.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t3.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m3.75_XYB']
+[ 247.0s] budget: estimated None s, remaining 440533.0 s
+[ 247.0s] estimate for dbn65l8ou4as73b3uh9g still unavailable after 0 s wait
+[ 248.3s] job 76: dbn65loou4as73b3uhag with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t4.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m4.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t4.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m4.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t4.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m4.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t4.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m4.75_Z']
+[ 248.6s] budget: estimated None s, remaining 440533.0 s
+[ 248.6s] estimate for dbn65loou4as73b3uhag still unavailable after 0 s wait
+[ 250.0s] job 77: dbn65mdt7fqc73aj0gqg with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t4.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m4.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t4.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m4.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t5.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m5.25_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t5.25_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m5.25_XYA']
+[ 250.4s] budget: estimated None s, remaining 440533.0 s
+[ 250.4s] estimate for dbn65mdt7fqc73aj0gqg still unavailable after 0 s wait
+[ 251.9s] job 78: dbn65moqtr0c73aceaq0 with 8 pubs ['prod-quarter.prod_k1.26_s0.75_ns50:j0_t5.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m5.25_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t5.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m5.75_Z', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t5.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m5.75_XYA', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_t5.75_XYB', 'prod-quarter.prod_k1.26_s0.75_ns50:j0_m5.75_XYB']
+[ 252.2s] budget: estimated None s, remaining 440533.0 s
+[ 252.2s] estimate for dbn65moqtr0c73aceaq0 still unavailable after 0 s wait
+[ 253.2s] job 79: dbn65n0qtr0c73acearg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m0.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m0.25_Z']
+[ 253.6s] budget: estimated None s, remaining 440533.0 s
+[ 253.6s] estimate for dbn65n0qtr0c73acearg still unavailable after 0 s wait
+[ 254.5s] job 80: dbn65n8qtr0c73aceat0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m0.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m0.25_XYA']
+[ 255.0s] budget: estimated None s, remaining 440533.0 s
+[ 255.0s] estimate for dbn65n8qtr0c73aceat0 still unavailable after 0 s wait
+[ 255.8s] job 81: dbn65noou4as73b3uhf0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m0.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m0.25_XYB']
+[ 256.1s] budget: estimated None s, remaining 440533.0 s
+[ 256.1s] estimate for dbn65noou4as73b3uhf0 still unavailable after 0 s wait
+[ 257.0s] job 82: dbn65o44148s7390cs30 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m0.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m0.75_Z']
+[ 257.4s] budget: estimated None s, remaining 440533.0 s
+[ 257.4s] estimate for dbn65o44148s7390cs30 still unavailable after 0 s wait
+[ 258.3s] job 83: dbn65oc4148s7390cs40 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m0.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m0.75_XYA']
+[ 258.6s] budget: estimated None s, remaining 440533.0 s
+[ 258.6s] estimate for dbn65oc4148s7390cs40 still unavailable after 0 s wait
+[ 259.8s] job 84: dbn65ogqtr0c73aceb00 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t0.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t0.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t0.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m0.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m0.75_XYB']
+[ 260.1s] budget: estimated None s, remaining 440533.0 s
+[ 260.1s] estimate for dbn65ogqtr0c73aceb00 still unavailable after 0 s wait
+[ 261.0s] job 85: dbn65p44148s7390cs6g with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t1.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t1.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t1.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m1.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m1.25_Z']
+[ 261.7s] budget: estimated 105.184232894 s, remaining 440533.0 s
+[ 262.8s] job 86: dbn65pgqtr0c73aceb1g with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t1.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t1.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t1.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m1.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m1.25_XYA']
+[ 263.2s] budget: estimated None s, remaining 440533.0 s
+[ 263.2s] estimate for dbn65pgqtr0c73aceb1g still unavailable after 0 s wait
+[ 264.1s] job 87: dbn65ps4148s7390cs8g with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t1.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t1.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t1.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m1.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m1.25_XYB']
+[ 264.5s] budget: estimated None s, remaining 440533.0 s
+[ 264.5s] estimate for dbn65ps4148s7390cs8g still unavailable after 0 s wait
+[ 265.7s] job 88: dbn65q8ou4as73b3uhlg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t1.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t1.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t1.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m1.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m1.75_Z']
+[ 266.0s] budget: estimated None s, remaining 440533.0 s
+[ 266.0s] estimate for dbn65q8ou4as73b3uhlg still unavailable after 0 s wait
+[ 267.0s] job 89: dbn65qgou4as73b3uhng with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t1.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t1.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t1.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m1.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m1.75_XYA']
+[ 267.5s] budget: estimated None s, remaining 440533.0 s
+[ 267.5s] estimate for dbn65qgou4as73b3uhng still unavailable after 0 s wait
+[ 268.4s] job 90: dbn65qtt7fqc73aj0h3g with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t1.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t1.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t1.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m1.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m1.75_XYB']
+[ 268.8s] budget: estimated None s, remaining 440533.0 s
+[ 268.8s] estimate for dbn65qtt7fqc73aj0h3g still unavailable after 0 s wait
+[ 269.8s] job 91: dbn65rc4148s7390csbg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t2.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t2.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t2.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m2.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m2.25_Z']
+[ 270.2s] budget: estimated None s, remaining 440533.0 s
+[ 270.2s] estimate for dbn65rc4148s7390csbg still unavailable after 0 s wait
+[ 271.1s] job 92: dbn65rgou4as73b3uhqg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t2.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t2.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t2.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m2.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m2.25_XYA']
+[ 271.6s] budget: estimated None s, remaining 440533.0 s
+[ 271.6s] estimate for dbn65rgou4as73b3uhqg still unavailable after 0 s wait
+[ 272.6s] job 93: dbn65rtt7fqc73aj0h60 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t2.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t2.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t2.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m2.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m2.25_XYB']
+[ 272.9s] budget: estimated None s, remaining 440533.0 s
+[ 272.9s] estimate for dbn65rtt7fqc73aj0h60 still unavailable after 0 s wait
+[ 274.1s] job 94: dbn65s8ou4as73b3uht0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t2.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t2.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t2.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m2.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m2.75_Z']
+[ 274.4s] budget: estimated None s, remaining 440533.0 s
+[ 274.4s] estimate for dbn65s8ou4as73b3uht0 still unavailable after 0 s wait
+[ 275.6s] job 95: dbn65sk4148s7390csi0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t2.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t2.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t2.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m2.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m2.75_XYA']
+[ 276.1s] budget: estimated None s, remaining 440533.0 s
+[ 276.1s] estimate for dbn65sk4148s7390csi0 still unavailable after 0 s wait
+[ 277.2s] job 96: dbn65t5t7fqc73aj0h90 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t2.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t2.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t2.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m2.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m2.75_XYB']
+[ 277.6s] budget: estimated None s, remaining 440533.0 s
+[ 277.6s] estimate for dbn65t5t7fqc73aj0h90 still unavailable after 0 s wait
+[ 278.8s] job 97: dbn65tgqtr0c73acebb0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t3.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t3.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t3.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m3.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m3.25_Z']
+[ 279.3s] budget: estimated None s, remaining 440533.0 s
+[ 279.3s] estimate for dbn65tgqtr0c73acebb0 still unavailable after 0 s wait
+[ 280.4s] job 98: dbn65toou4as73b3ui0g with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t3.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t3.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t3.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m3.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m3.25_XYA']
+[ 280.8s] budget: estimated None s, remaining 440533.0 s
+[ 280.8s] estimate for dbn65toou4as73b3ui0g still unavailable after 0 s wait
+[ 282.0s] job 99: dbn65u8qtr0c73acebd0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t3.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t3.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t3.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m3.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m3.25_XYB']
+[ 282.5s] budget: estimated None s, remaining 440533.0 s
+[ 282.5s] estimate for dbn65u8qtr0c73acebd0 still unavailable after 0 s wait
+[ 284.1s] job 100: dbn65utt7fqc73aj0hdg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t3.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t3.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t3.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m3.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m3.75_Z']
+[ 284.4s] budget: estimated None s, remaining 440533.0 s
+[ 284.4s] estimate for dbn65utt7fqc73aj0hdg still unavailable after 0 s wait
+[ 285.7s] job 101: dbn65vdt7fqc73aj0he0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t3.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t3.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t3.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m3.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m3.75_XYA']
+[ 286.3s] budget: estimated None s, remaining 440533.0 s
+[ 286.3s] estimate for dbn65vdt7fqc73aj0he0 still unavailable after 0 s wait
+[ 287.7s] job 102: dbn65vs4148s7390csng with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t3.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t3.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t3.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m3.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m3.75_XYB']
+[ 288.3s] budget: estimated None s, remaining 440533.0 s
+[ 288.3s] estimate for dbn65vs4148s7390csng still unavailable after 0 s wait
+[ 289.7s] job 103: dbn66044148s7390csog with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t4.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t4.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t4.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m4.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m4.25_Z']
+[ 290.1s] budget: estimated None s, remaining 440533.0 s
+[ 290.1s] estimate for dbn66044148s7390csog still unavailable after 0 s wait
+[ 291.5s] job 104: dbn660gqtr0c73acebhg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t4.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t4.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t4.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m4.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m4.25_XYA']
+[ 292.2s] budget: estimated None s, remaining 440533.0 s
+[ 292.2s] estimate for dbn660gqtr0c73acebhg still unavailable after 0 s wait
+[ 293.7s] job 105: dbn6610ou4as73b3ui70 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t4.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t4.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t4.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m4.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m4.25_XYB']
+[ 294.1s] budget: estimated None s, remaining 440533.0 s
+[ 294.1s] estimate for dbn6610ou4as73b3ui70 still unavailable after 0 s wait
+[ 295.4s] job 106: dbn661lt7fqc73aj0hhg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t4.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t4.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t4.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m4.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m4.75_Z']
+[ 295.8s] budget: estimated None s, remaining 440533.0 s
+[ 295.8s] estimate for dbn661lt7fqc73aj0hhg still unavailable after 0 s wait
+[ 297.1s] job 107: dbn6625t7fqc73aj0hig with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t4.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t4.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t4.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m4.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m4.75_XYA']
+[ 297.4s] budget: estimated None s, remaining 440533.0 s
+[ 297.4s] estimate for dbn6625t7fqc73aj0hig still unavailable after 0 s wait
+[ 298.6s] job 108: dbn662k4148s7390cst0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t4.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t4.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t4.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m4.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m4.75_XYB']
+[ 298.9s] budget: estimated None s, remaining 440533.0 s
+[ 298.9s] estimate for dbn662k4148s7390cst0 still unavailable after 0 s wait
+[ 300.3s] job 109: dbn662tt7fqc73aj0hk0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t5.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t5.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t5.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m5.25_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m5.25_Z']
+[ 300.9s] budget: estimated None s, remaining 440533.0 s
+[ 300.9s] estimate for dbn662tt7fqc73aj0hk0 still unavailable after 0 s wait
+[ 302.5s] job 110: dbn663dt7fqc73aj0hm0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t5.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t5.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t5.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m5.25_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m5.25_XYA']
+[ 302.8s] budget: estimated None s, remaining 440533.0 s
+[ 302.8s] estimate for dbn663dt7fqc73aj0hm0 still unavailable after 0 s wait
+[ 304.0s] job 111: dbn663oqtr0c73acebo0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t5.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t5.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t5.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m5.25_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m5.25_XYB']
+[ 304.4s] budget: estimated None s, remaining 440533.0 s
+[ 304.4s] estimate for dbn663oqtr0c73acebo0 still unavailable after 0 s wait
+[ 305.9s] job 112: dbn664dt7fqc73aj0hq0 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t5.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t5.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t5.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m5.75_Z', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m5.75_Z']
+[ 306.3s] budget: estimated None s, remaining 440533.0 s
+[ 306.3s] estimate for dbn664dt7fqc73aj0hq0 still unavailable after 0 s wait
+[ 307.7s] job 113: dbn664s4148s7390ct10 with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t5.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t5.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t5.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m5.75_XYA', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m5.75_XYA']
+[ 308.2s] budget: estimated None s, remaining 440533.0 s
+[ 308.2s] estimate for dbn664s4148s7390ct10 still unavailable after 0 s wait
+[ 309.5s] job 114: dbn6650qtr0c73acebqg with 5 pubs ['relA-quarter.relA_k1.26_s0.75_ns50:j0_t5.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_t5.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p2_t5.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j0_m5.75_XYB', 'relA-quarter.relA_k1.26_s0.75_ns50:j1p1_m5.75_XYB']
+[ 309.9s] budget: estimated None s, remaining 440533.0 s
+[ 309.9s] estimate for dbn6650qtr0c73acebqg still unavailable after 0 s wait
+[ 311.6s] job 115: dbn665gqtr0c73acebrg with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t6.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m6.5_Z']
+[ 312.2s] budget: estimated None s, remaining 440533.0 s
+[ 312.2s] estimate for dbn665gqtr0c73acebrg still unavailable after 0 s wait
+[ 313.9s] job 116: dbn6668ou4as73b3uifg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t6.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t6.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t6.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t6.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m6.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m6.5_XYA']
+[ 314.4s] budget: estimated None s, remaining 440533.0 s
+[ 314.4s] estimate for dbn6668ou4as73b3uifg still unavailable after 0 s wait
+[ 316.3s] job 117: dbn666s4148s7390ct5g with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t6.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t6.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t6.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t6.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m6.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m6.5_XYB']
+[ 316.8s] budget: estimated None s, remaining 440533.0 s
+[ 316.8s] estimate for dbn666s4148s7390ct5g still unavailable after 0 s wait
+[ 318.5s] job 118: dbn667c4148s7390ct60 with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t7.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m7.0_Z']
+[ 318.9s] budget: estimated None s, remaining 440533.0 s
+[ 318.9s] estimate for dbn667c4148s7390ct60 still unavailable after 0 s wait
+[ 320.5s] job 119: dbn667tt7fqc73aj0i2g with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t7.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t7.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t7.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t7.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m7.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m7.0_XYA']
+[ 321.2s] budget: estimated None s, remaining 440533.0 s
+[ 321.2s] estimate for dbn667tt7fqc73aj0i2g still unavailable after 0 s wait
+[ 323.0s] job 120: dbn668gou4as73b3uik0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t7.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t7.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t7.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t7.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m7.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m7.0_XYB']
+[ 323.3s] budget: estimated None s, remaining 440533.0 s
+[ 323.3s] estimate for dbn668gou4as73b3uik0 still unavailable after 0 s wait
+[ 325.1s] job 121: dbn6690ou4as73b3uilg with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t7.5_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m7.5_Z']
+[ 325.5s] budget: estimated None s, remaining 440533.0 s
+[ 325.5s] estimate for dbn6690ou4as73b3uilg still unavailable after 0 s wait
+[ 327.1s] job 122: dbn669lt7fqc73aj0i6g with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t7.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t7.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t7.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t7.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m7.5_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m7.5_XYA']
+[ 327.4s] budget: estimated None s, remaining 440533.0 s
+[ 327.4s] estimate for dbn669lt7fqc73aj0i6g still unavailable after 0 s wait
+[ 328.9s] job 123: dbn66a5t7fqc73aj0i8g with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t7.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t7.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t7.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t7.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m7.5_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m7.5_XYB']
+[ 329.4s] budget: estimated None s, remaining 440533.0 s
+[ 329.4s] estimate for dbn66a5t7fqc73aj0i8g still unavailable after 0 s wait
+[ 331.1s] job 124: dbn66agqtr0c73acec4g with 8 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j0_m8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_t8.0_Z', 'relA-core.relA_k1.26_s0.75_ns50:plain_m8.0_Z']
+[ 331.7s] budget: estimated None s, remaining 440533.0 s
+[ 331.7s] estimate for dbn66agqtr0c73acec4g still unavailable after 0 s wait
+[ 333.2s] job 125: dbn66b0ou4as73b3uio0 with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t8.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t8.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t8.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t8.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j0_m8.0_XYA', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m8.0_XYA']
+[ 333.6s] budget: estimated None s, remaining 440533.0 s
+[ 333.6s] estimate for dbn66b0ou4as73b3uio0 still unavailable after 0 s wait
+[ 335.1s] job 126: dbn66blt7fqc73aj0icg with 6 pubs ['relA-core.relA_k1.26_s0.75_ns50:j0_t8.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_t8.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p2_t8.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0d_t8.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j0_m8.0_XYB', 'relA-core.relA_k1.26_s0.75_ns50:j1p1_m8.0_XYB']
+[ 335.5s] budget: estimated None s, remaining 440533.0 s
+[ 335.5s] estimate for dbn66blt7fqc73aj0icg still unavailable after 0 s wait
