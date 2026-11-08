@@ -1565,7 +1565,7 @@ def transpile_bundle(be, lat: Lattice, card: dict, emb: Embedding, steps=(1,),
 
 
 def tail_block(b: Bundle, be, n: int, tail: float, t=None, fractional: bool | None = None,
-               eps: float = MIRROR_EPS) -> dict:
+               eps: float | None = None) -> dict:
     """Physics/mirror pair for a quarter-time slice: ``n`` full steps of DT and
     one step of ``tail`` (`campaign.steps_for`), composed from the bundle's
     ISA step, so it needs the layout-preserving (ladder) step.  The mirror
@@ -1584,6 +1584,7 @@ def tail_block(b: Bundle, be, n: int, tail: float, t=None, fractional: bool | No
         t = next(iter(b.step.parameters))
     pname = t if isinstance(t, str) else t.name
     fractional = b.basis == "rzz" if fractional is None else fractional
+    eps = MIRROR_EPS if eps is None else eps        # module value: set_mirror_eps rebinds it
     full = C.assign(b.step, pname, DT)
     phys = C.assign(b.step, pname, tail)
     mir = C.assign(b.step, pname, eps / (n + 1))
@@ -1595,7 +1596,7 @@ def tail_block(b: Bundle, be, n: int, tail: float, t=None, fractional: bool | No
     n2q = assert_skeleton_equal(phys, mir)
     full_c = b.base.compose(phys)
     return {"physics": phys, "mirror": mir, "layout": b.step_layout, "mode": "composed+tail",
-            "n2q": n2q, "parametric": None, "n_steps": n, "tail": tail,
+            "n2q": n2q, "parametric": None, "n_steps": n, "tail": tail, "mirror_eps": eps,
             "ops2q": count_ops_2q(phys), "depth2q": depth_2q(phys),
             "duration_us": duration_us(phys, be),
             "full_n2q": count_2q(full_c), "full_depth2q": depth_2q(full_c),
@@ -1621,16 +1622,17 @@ def _make_block(b: Bundle, be, lat, n, t, preserved, fractional, opt_level, seed
     n2q = assert_skeleton_equal(phys, mir)
     full = b.base.compose(phys)
     return {"physics": phys, "mirror": mir, "layout": layout, "mode": mode, "n2q": n2q,
-            "parametric": blk, "n_steps": n,
+            "parametric": blk, "n_steps": n, "mirror_eps": MIRROR_EPS,
             "ops2q": count_ops_2q(phys), "depth2q": depth_2q(phys),
             "duration_us": duration_us(phys, be), "full_n2q": count_2q(full),
             "full_depth2q": depth_2q(full), "full_duration_us": duration_us(full, be),
             "seconds": secs}
 
 
-def assign_block(b: Bundle, n: int, t_total: float, eps: float = MIRROR_EPS):
+def assign_block(b: Bundle, n: int, t_total: float, eps: float | None = None):
     """(physics, mirror) for an n-step block of total time ``t_total`` from the
     bundle's parametric block (any dt, e.g. half steps); rzz angles folded."""
+    eps = MIRROR_EPS if eps is None else eps
     blk = b.blocks[n]
     per_step = blk["mode"] == "composed"
     phys = C.assign(blk["parametric"], "t", t_total / n if per_step else t_total)

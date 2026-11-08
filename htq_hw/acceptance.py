@@ -226,10 +226,21 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         kappa_tol: float = 0.25,
         refs: str = "data/qpdf_card_refs.npz", keep_rehearsal: str | None = None,
         log=print, exclude_qubits=(), exclude_edges=(), max_readout_error=None,
-        max_2q_error=None) -> dict:
-    """-> the record dict (also the return value of the CLI)."""
+        max_2q_error=None, mirror_eps: float | None = None,
+        twirl_gates: bool | None = None) -> dict:
+    """-> the record dict (also the return value of the CLI).
+
+    ``mirror_eps`` and ``twirl_gates`` are the ``--mirror-eps`` / ``--twirl-gates``
+    settings the submission will use; the first is applied here (it changes the
+    circuits the record validates), both are recorded under ``options``."""
+    import htq_hw
     res, t0 = Result(), time.time()
     steps = STEPS_FULL if level == "full" else STEPS_FAST
+    if mirror_eps is not None:
+        htq_hw.set_mirror_eps(mirror_eps)
+    res.extra["options"] = {"mirror_eps": float(htq_hw.MIRROR_EPS),
+                            "twirling_gates": CP.gate_twirling(basis == "rzz", twirl_gates),
+                            "twirling_measure": True, "dd": "XY4"}
 
     # ---- A0 environment -------------------------------------------------
     env = R.env_stamp()

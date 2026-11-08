@@ -233,7 +233,8 @@ VAC_CARDS = {"prod": "prod_vac_ns50", "relA": "relA_vac_ns50"}
 QPDF_MS = (1, 2, 3, 4, 5)          # z = +-2m, |z| <= 10
 STRETCH_TIMES = (6.5, 7.0, 7.5, 8.0)
 PRESET_NAMES = ("relA-core", "prod-bridge", "vac-w00", "qpdf-scan", "gauss-midcircuit",
-                "prod-im", "relA-im", "prod-quarter", "relA-quarter")
+                "prod-im", "relA-im", "prod-quarter", "relA-quarter", "mirror-diag")
+MIRROR_DIAG_TIMES = (2.0, 4.0, 6.0)
 QUARTER_TIMES = tuple(round(0.25 + 0.5 * k, 2) for k in range(12))     # 0.25 .. 5.75
 
 
@@ -300,6 +301,14 @@ def preset_specs(name: str) -> list[PubSpec]:
     if name == "gauss-midcircuit":
         from .gauss import gauss_specs
         return gauss_specs(name)
+    if name == "mirror-diag":
+        # the smallest test of the mirror itself: j0 x Z physics and its mirror
+        # at three depths plus the t = 0 reference on the production card, 7
+        # pubs, to be run with --twirl-gates on and/or --mirror-eps raised and
+        # compared probe by probe with the production kappas (the 6 November
+        # 2026 ibm_chicago rzz mirrors lost the odd sites around the insertion)
+        return manifest(times=MIRROR_DIAG_TIMES, families=("j0",), readouts=("Z",), dither=False,
+                        dither_refs=False, card="prod_k1.26_s0.75_ns50", preset=name)
     raise ValueError(f"unknown preset {name!r}; known {PRESET_NAMES}")
 
 
@@ -644,11 +653,18 @@ def preflight_runtime(be, pubs: dict, shots: dict, jobs: list[list[str]],
     return {"jobs": len(jobs), "pubs": count}
 
 
-def _sampler(mode, fractional: bool, shots_default: int | None = None):
+def gate_twirling(fractional: bool, twirl_gates: bool | None = None) -> bool:
+    """Whether the Sampler twirls two-qubit gates: off for fractional (rzz)
+    circuits unless ``twirl_gates`` says otherwise (``--twirl-gates``)."""
+    return (not fractional) if twirl_gates is None else bool(twirl_gates)
+
+
+def _sampler(mode, fractional: bool, shots_default: int | None = None,
+             twirl_gates: bool | None = None):
     from qiskit_ibm_runtime import SamplerV2
 
     smp = SamplerV2(mode=mode)
-    smp.options.twirling.enable_gates = not fractional
+    smp.options.twirling.enable_gates = gate_twirling(fractional, twirl_gates)
     smp.options.twirling.enable_measure = True
     smp.options.dynamical_decoupling.enable = True
     smp.options.dynamical_decoupling.sequence_type = "XY4"
@@ -754,7 +770,8 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
            tag: str = "", log=None, est_seconds: float | None = None, strict_guard: bool = True,
            batch: bool = True, job_offset: int = 0,
            estimate_wait: float = ESTIMATE_WAIT_SECONDS,
-           job_indices: list[int] | None = None) -> list[dict]:
+           job_indices: list[int] | None = None,
+           twirl_gates: bool | None = None) -> list[dict]:
     """Submit one SamplerV2 job per name list; write data/hw/htq_job_<id>.json.
     ``mode`` is a real backend (from QiskitRuntimeService) or a fake backend /
     AerSimulator for local testing mode.
@@ -794,9 +811,12 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
                 "the remaining allocation could not be read, so this submission cannot be shown to "
                 "fit; nothing was submitted. Check the instance, or pass --no-strict-guard to "
                 "submit without that assurance.")
+    twirl = gate_twirling(fractional, twirl_gates)
+    options = {"twirling_gates": twirl, "twirling_measure": True, "dd": "XY4",
+               "mirror_eps": float(MIRROR_EPS)}
     records, cancelled = [], None
     with _batch_ctx(mode, real and batch, log) as bctx:
-        smp = _sampler(bctx if bctx is not None else mode, fractional)
+        smp = _sampler(bctx if bctx is not None else mode, fractional, twirl_gates=twirl)
         for k, names in enumerate(jobs):
             job = smp.run([(pubs[n], None, int(shots[n])) for n in names])
             jid = job.job_id()
@@ -806,7 +826,7 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
                     "n_logical": lat.n_wires, "embedding": emb.kind, "initial_layout": emb.layout,
                     "pub_names": names, "shots": {n: int(shots[n]) for n in names},
                     "pubs": {n: info[n] for n in names}, "job_index": indices[k],
-                    "options": {"twirling_gates": not fractional, "twirling_measure": True, "dd": "XY4"},
+                    "options": dict(options),
                     "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
             path = os.path.join(out_dir, f"htq_job_{jid}.json")
             meta["guard"] = "pending"

@@ -186,9 +186,9 @@ def assign(qc: QuantumCircuit, t, value: float) -> QuantumCircuit:
 
 
 def physics_and_mirror(block: QuantumCircuit, t, t_phys: float,
-                       eps: float = MIRROR_EPS) -> tuple[QuantumCircuit, QuantumCircuit]:
+                       eps: float | None = None) -> tuple[QuantumCircuit, QuantumCircuit]:
     """(physics, mirror) from one parametric block (scripts/ibm_hardware.py:123-130)."""
-    return assign(block, t, t_phys), assign(block, t, eps)
+    return assign(block, t, t_phys), assign(block, t, MIRROR_EPS if eps is None else eps)
 
 
 # ------------------------------------------------------------------ wavepacket

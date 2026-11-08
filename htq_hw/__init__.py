@@ -54,6 +54,28 @@ DT = 0.5
 # mirror block total angle -> net identity with the physics skeleton
 # (scripts/ibm_hardware.py:130)
 MIRROR_EPS = 1e-8
+_MIRROR_EPS_MODULES = ("htq_hw", "htq_hw.circuits", "htq_hw.campaign", "htq_hw.target",
+                       "htq_hw.sim", "htq_hw.__main__")
+
+
+def set_mirror_eps(eps: float) -> float:
+    """Set the mirror block's total angle for this process (``--mirror-eps``).
+
+    The submodules bind ``MIRROR_EPS`` by name at import, so the value is
+    rebound in each of them; functions read it at call time.  A diagnostic
+    for a mirror that misbehaves at the default 1e-8 (the 6 November 2026
+    ibm_chicago rzz run) raises it to a few 1e-2: still a near-identity
+    block for kappa, but far from the gate calibration's edge."""
+    import math
+    import sys
+    eps = float(eps)
+    if not (math.isfinite(eps) and 0 < eps < 0.5):
+        raise ValueError(f"mirror eps must lie in (0, 0.5); got {eps}")
+    for name in _MIRROR_EPS_MODULES:
+        mod = sys.modules.get(name)
+        if mod is not None:
+            mod.MIRROR_EPS = eps
+    return eps
 
 # 2-layer vacuum ansatz angles (th_even, th_odd, th_mass, th_gauge) x 2,
 # trained at Ns=6 for (M0, G2, ETA); equal to

@@ -568,7 +568,22 @@ def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
                 fw = final_wires(range(lat.n_wires), blk["layout"], wire)
                 mapped = {k: remap(op, fw, rel.num_qubits) for k, op in obs.items()}
                 d = expectations(sim, full, mapped, init, perm=perm)
-                results[(fam, f"{label} t={CP.QuarterTime(t):.1f}")] = _compare(d, ideal, t_ref, log, f"{fam} {label} t={CP.QuarterTime(t):.1f}")
+                tag = f"{fam} {label} t={CP.QuarterTime(t):.1f}"
+                if label == "mirror" and MIRROR_EPS > MIRROR_EPS_IDENTITY:
+                    # a mirror run at a raised angle (--mirror-eps) is a real
+                    # evolution to t = eps, which the grid has no row for: the
+                    # ISA mirror is checked against the logical mirror block
+                    # simulated on the same gadget state instead
+                    logical = QuantumCircuit(lat.n_wires)
+                    logical.compose(gad, inplace=True)
+                    logical.compose(C.hardware_block(lat, t, DT, *C.card_couplings(card), eps=MIRROR_EPS,
+                                                     n_wires=lat.n_wires, form=b.hop_form), inplace=True)
+                    ident = {k: remap(op, list(range(lat.n_wires)), lat.n_wires) for k, op in obs.items()}
+                    ref = expectations(sim, logical, ident, init, perm=perm)
+                    results[(fam, f"{label} t={CP.QuarterTime(t):.1f}")] = _compare_to(d, ref, ideal, log, tag,
+                                                                                         f"logical mirror eps={MIRROR_EPS:g}")
+                else:
+                    results[(fam, f"{label} t={CP.QuarterTime(t):.1f}")] = _compare(d, ideal, t_ref, log, tag)
         worst = max(worst, max(v for (f, _), v in results.items() if f == fam))
     bad = {k: v for k, v in results.items() if v > tol}
     if bad:
@@ -582,11 +597,25 @@ READOUT_GROUPS = {"J0(Z)": ("XB_", "YB_", "B_"), "T1(XYA/XYB)": ("XT1_", "YT1_",
 LAST_GROUPS: dict = {}
 
 
+# above this mirror angle the t = 0 grid row is no longer the mirror's reference
+MIRROR_EPS_IDENTITY = 1e-4
+
+
 def _compare(d: dict, ideal: A.IdealGrid, t: float, log, tag: str) -> float:
     """Max |simulated - ideal| over the observables present in the grid; the
     per-readout-group maxima are stored in LAST_GROUPS[tag] and logged."""
     row = ideal.row(t)
     diffs = {k: abs(v - float(ideal.z[k][row])) for k, v in d.items() if ideal.has(k)}
+    return _report_diffs(diffs, log, tag, f"ideal t={ideal.times[row]:.1f}")
+
+
+def _compare_to(d: dict, ref: dict, ideal: A.IdealGrid, log, tag: str, what: str) -> float:
+    """Max |simulated - reference| over the same observable set `_compare` uses."""
+    diffs = {k: abs(v - float(ref[k])) for k, v in d.items() if ideal.has(k)}
+    return _report_diffs(diffs, log, tag, what)
+
+
+def _report_diffs(diffs: dict, log, tag: str, what: str) -> float:
     worst = max(diffs, key=diffs.get)
     groups = {}
     for g, prefixes in READOUT_GROUPS.items():
@@ -595,7 +624,7 @@ def _compare(d: dict, ideal: A.IdealGrid, t: float, log, tag: str) -> float:
             kw = max(sel, key=sel.get)
             groups[g] = (sel[kw], kw)
     LAST_GROUPS[tag] = groups
-    T._log(f"[{tag}] vs ideal t={ideal.times[row]:.1f}: max |diff| {diffs[worst]:.2e} ({worst}), "
+    T._log(f"[{tag}] vs {what}: max |diff| {diffs[worst]:.2e} ({worst}), "
            f"{len(diffs)} observables; " + ", ".join(f"{g} {v:.1e} ({k})" for g, (v, k) in groups.items()), log)
     return diffs[worst]
 

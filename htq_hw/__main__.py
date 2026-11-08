@@ -157,6 +157,12 @@ def _error_cuts(args) -> dict:
     return out
 
 
+def _twirl_gates(args) -> bool | None:
+    """--twirl-gates auto/on/off -> None/True/False for campaign.gate_twirling."""
+    value = getattr(args, "twirl_gates", "auto")
+    return None if value in (None, "auto") else value == "on"
+
+
 def _excluded_edges(args) -> tuple:
     """'U-V' items -> (u, v) pairs."""
     out = []
@@ -368,7 +374,8 @@ def cmd_submit(args):
         recs = CP.submit(mode, pubs, info, shots, jobs, lat, emb, args.basis, args.out, service,
                          args.guard, tag=args.tag, log=log, est_seconds=est_s,
                          strict_guard=not args.no_strict_guard, batch=not args.no_batch,
-                         estimate_wait=args.estimate_wait, job_indices=args.only_jobs)
+                         estimate_wait=args.estimate_wait, job_indices=args.only_jobs,
+                         twirl_gates=_twirl_gates(args))
     except CP.BudgetError as e:
         raise SystemExit(f"budget guard: {e}")
     if not args.real and args.fetch:
@@ -491,6 +498,7 @@ def cmd_acceptance(args):
                  kappa_tol=args.kappa_tol, refs=args.refs,
                  keep_rehearsal=args.keep_rehearsal, log=log,
                  exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args),
+                 mirror_eps=args.mirror_eps, twirl_gates=_twirl_gates(args),
                  **_error_cuts(args))
     path = R.write_record(record_path, "acceptance", rec, rec["status"])
     print()
@@ -631,6 +639,13 @@ def main(argv=None):
                     help="permit a transpiler-chosen layout when no ladder/ring fits. Off by default: "
                          "it roughly doubles the two-qubit count and skips the layout-preservation "
                          "assertion the mirror mitigation depends on")
+    ap.add_argument("--mirror-eps", type=float, default=None, metavar="ANGLE",
+                    help=f"total angle of the mirror block (default {MIRROR_EPS:g}); a diagnostic "
+                         "raises it to e.g. 0.05 when the near-zero mirror misbehaves. Recorded in "
+                         "the acceptance record and every job's options")
+    ap.add_argument("--twirl-gates", choices=["auto", "on", "off"], default="auto",
+                    help="Sampler two-qubit gate twirling: auto = on for CZ, off for rzz (the "
+                         "historical rule); on/off override it. Recorded with the jobs")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     e = sub.add_parser("embed")
@@ -815,6 +830,10 @@ def main(argv=None):
               "pip install -r htq_hw/requirements.txt")
     if getattr(args, "cache", None) == "":
         args.cache = None
+    if getattr(args, "mirror_eps", None) is not None:
+        import htq_hw
+        htq_hw.set_mirror_eps(args.mirror_eps)
+        log(f"mirror block total angle set to {args.mirror_eps:g} (default {MIRROR_EPS:g})")
     if getattr(args, "weighting", None) is None and hasattr(args, "preset"):
         args.weighting = "equal" if args.preset else "kappa"
     args.fn(args)
