@@ -79,7 +79,17 @@ Millar (IBM) for the diagnosis, hlammiv/hadronic_tensor#1.
 `choose_embedding` picks ring / ladder / grid-cycle / transpiler automatically and scores
 candidates with the target's 2q and readout error rates.  It searches the **operational** graph (dead
 qubits and out-of-threshold couplers removed) and, when the pristine templates do not fit, grows cycles
-on the real graph by beam search.  Two refusals matter: it will not fall back to a transpiler layout
+on the real graph by beam search.  `--min-t2 US` then rejects candidates whose **Hadamard-test core**
+(the insertion site, its two matter neighbours, the links on both sides and the ancilla) has a qubit
+with T2 below US microseconds; the core T2 is recorded in the acceptance record either way.  The floor
+exists because the score is a sum over ~100 qubits and couplers, so the insertion site carries 1/200
+of it: on ibm_chicago 2026-11-08 eight ladders scored within 0.1% of each other and the winner put
+site 24 on q108 (T2 70 us, neighbours 170-320 us), where the mirror collapsed (kappa 0.31 / -0.06 /
+0.23 at t = 2 / 4 / 6 against 0.80 / 0.67 / 0.55 two days earlier) while its t = 0 reference was
+unchanged.  A device-wide T2 floor is not offered: 100 us would remove 30 of Nighthawk's 120 qubits
+and no Ns=50 ladder survives.  The floor needs calibration data, so offline it works on a fake in the
+cz basis (the fakes ship properties) but not on their rzz twins (GenericBackendV2 has none); on the
+real device it works in either basis.  Two refusals matter: it will not fall back to a transpiler layout
 unless asked (that abandons the mirror-skeleton invariant), and it will not fall back from a ladder
 whose search merely *ran out of budget* (the grid alternative costs about 1.9x the two-qubit count per
 Trotter step).  The search is bounded by work, not wall clock, so a busy machine and an idle one choose

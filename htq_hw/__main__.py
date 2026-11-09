@@ -81,7 +81,7 @@ def cmd_embed(args):
               f"grid {T.grid_coordinates(g)[:2] if T.grid_coordinates(g) else None}")
         emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log,
                                  allow_transpiler=getattr(args, "allow_transpiler", False),
-                                 graph=g, basis=basis)
+                                 graph=g, basis=basis, min_core_t2_us=_core_t2(args))
         emb.validate(g)
         info = {k: v for k, v in emb.info.items() if k != "cycle"}
         print(f"  {emb.summary()}  info {info}")
@@ -106,7 +106,8 @@ def cmd_report(args):
                 lat = Lattice(args.ns)
                 graph, _ = T.operational_graph(be, basis=basis, log=log, **filters)
                 emb = T.choose_embedding(be, args.ns, _center_for(card, args.ns), mode=args.mode,
-                                         allow_transpiler=allow_transpiler, graph=graph, basis=basis)
+                                         allow_transpiler=allow_transpiler, graph=graph, basis=basis,
+                                         min_core_t2_us=_core_t2(args))
                 b = T.transpile_bundle(be, lat, card, emb, (max(args.steps),), basis, "J0", args.seed, args.cache)
                 full = C.readout_layer(b.base.compose(b.blocks[max(args.steps)]["physics"]), lat,
                                        b.blocks[max(args.steps)]["layout"], "Z")
@@ -157,6 +158,12 @@ def _error_cuts(args) -> dict:
     return out
 
 
+def _core_t2(args):
+    """--min-t2 US -> choose_embedding(min_core_t2_us=US), or None."""
+    v = getattr(args, "min_t2", None)
+    return None if v is None else float(v)
+
+
 def _twirl_gates(args) -> bool | None:
     """--twirl-gates auto/on/off -> None/True/False for campaign.gate_twirling."""
     value = getattr(args, "twirl_gates", "auto")
@@ -199,7 +206,9 @@ def _setup(args, basis=None, require_real=False):
             f"{len(greport['dropped_edges'])} coupler(s): {greport['reasons']}")
     emb = T.choose_embedding(be, args.ns, center, mode=args.mode, log=log, gauss_sites=gauss_sites,
                              graph=graph, allow_transpiler=getattr(args, "allow_transpiler", False),
-                             basis=run_basis)
+                             basis=run_basis, min_core_t2_us=_core_t2(args))
+    if emb.info.get("core_t2_us"):
+        log(f"Hadamard-test core T2: {T._core_summary(emb.info['core_t2_us'])}")
     if getattr(args, "preset", None):
         specs = CP.compose_presets(args.preset)
         card = CP.load_cards(specs, None)       # {name: card} for the composed campaign
@@ -501,7 +510,7 @@ def cmd_acceptance(args):
                  keep_rehearsal=args.keep_rehearsal, log=log,
                  exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args),
                  mirror_eps=args.mirror_eps, twirl_gates=_twirl_gates(args), pre_twirl=args.pre_twirl,
-                 **_error_cuts(args))
+                 min_core_t2_us=_core_t2(args), **_error_cuts(args))
     path = R.write_record(record_path, "acceptance", rec, rec["status"])
     print()
     print(R.summarize({"kind": "acceptance", **rec, "env": R.env_stamp(), "git": R.git_stamp()}))
@@ -637,6 +646,11 @@ def main(argv=None):
     ap.add_argument("--max-2q-error", type=float, default=None, metavar="P",
                     help="drop couplers where a two-qubit gate of the run's basis (rzz and CZ for "
                          "--basis rzz) exceeds P or has no calibration, e.g. 0.01")
+    ap.add_argument("--min-t2", type=float, default=None, metavar="US",
+                    help="reject candidate layouts whose Hadamard-test core (the insertion site, its two "
+                         "neighbours, their links and the ancilla) has a qubit with calibrated T2 below "
+                         "US microseconds or none, e.g. 100: the 2026-11-08 chicago layout put the "
+                         "insertion site on a 70 us qubit and its mirror collapsed")
     ap.add_argument("--allow-transpiler", action="store_true",
                     help="permit a transpiler-chosen layout when no ladder/ring fits. Off by default: "
                          "it roughly doubles the two-qubit count and skips the layout-preservation "

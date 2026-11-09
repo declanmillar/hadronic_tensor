@@ -434,6 +434,11 @@ def test_cli_error_cuts():
     assert _error_cuts(argparse.Namespace()) == {}
     a = argparse.Namespace(max_readout_error=0.05, max_2q_error=0.02)
     assert _error_cuts(a) == {"max_readout_error": 0.05, "max_2q_error": 0.02}
+    from htq_hw.__main__ import _core_t2
+    assert _error_cuts(argparse.Namespace(min_t2=100)) == {}          # the T2 floor is not a graph cut
+    assert _core_t2(argparse.Namespace(min_t2=100)) == 100.0 and _core_t2(argparse.Namespace()) is None
     out = subprocess.run([sys.executable, "-m", "htq_hw", "--max-readout-error", "0.05",
-                          "--max-2q-error", "0.02", "--help"], capture_output=True, text=True)
+                          "--max-2q-error", "0.02", "--min-t2", "100", "--help"],
+                         capture_output=True, text=True)
     assert out.returncode == 0 and "--max-readout-error" in out.stdout and "--max-2q-error" in out.stdout
+    assert "--min-t2" in out.stdout

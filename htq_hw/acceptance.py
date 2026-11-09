@@ -227,7 +227,7 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         refs: str = "data/qpdf_card_refs.npz", keep_rehearsal: str | None = None,
         log=print, exclude_qubits=(), exclude_edges=(), max_readout_error=None,
         max_2q_error=None, mirror_eps: float | None = None,
-        twirl_gates: bool | None = None, pre_twirl: int = 0) -> dict:
+        twirl_gates: bool | None = None, pre_twirl: int = 0, min_core_t2_us=None) -> dict:
     """-> the record dict (also the return value of the CLI).
 
     ``mirror_eps``, ``twirl_gates`` and ``pre_twirl`` are the ``--mirror-eps`` /
@@ -292,26 +292,33 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
                                              max_readout_error=max_readout_error,
                                              max_2q_error=max_2q_error)
         emb = T.choose_embedding(be, ns, center, mode=mode, log=log, gauss_sites=gauss_sites,
-                                 graph=graph, allow_transpiler=False, basis=basis)
+                                 graph=graph, allow_transpiler=False, basis=basis,
+                                 min_core_t2_us=min_core_t2_us)
         red = emb.info.get("redundancy", 1)
         used = set(emb.layout or ())
         if used & set(exclude_qubits):
             raise T.EmbeddingError(f"embedding uses excluded qubit(s) {sorted(used & set(exclude_qubits))}")
+        core = emb.info.get("core_t2_us")
         res.add("embedding", R.PASS if red >= 2 else R.WARN,
                 f"{emb.kind}, redundancy {red}, spare {emb.info.get('spare_qubits')}, "
                 f"{len(greport['dropped_qubits'])} dead qubit(s) and "
                 f"{len(greport['dropped_edges'])} coupler(s) excluded"
                 + (f" ({len(exclude_qubits)} qubit(s), {len(exclude_edges)} coupler(s) by request)"
-                   if exclude_qubits or exclude_edges else ""),
+                   if exclude_qubits or exclude_edges else "")
+                + (f"; core T2 {T._core_summary(core)}" if core else "")
+                + (f" (floor {min_core_t2_us:g} us)" if min_core_t2_us is not None else ""),
                 embedding={"kind": emb.kind, "redundancy": red,
                            "spare_qubits": emb.info.get("spare_qubits"),
-                           "layout": list(emb.layout) if emb.layout else None},
+                           "layout": list(emb.layout) if emb.layout else None,
+                           "core_t2_us": core},
                 operational=greport)
         res.extra["embedding"] = {"kind": emb.kind, "redundancy": red,
                                   "spare_qubits": emb.info.get("spare_qubits"),
                                   "layout": list(emb.layout) if emb.layout else None,
+                                  "core_t2_us": core,
                                   "cuts": {"max_readout_error": max_readout_error,
-                                           "max_2q_error": max_2q_error, "basis": basis}}
+                                           "max_2q_error": max_2q_error,
+                                           "min_core_t2_us": min_core_t2_us, "basis": basis}}
     except T.EmbeddingError as e:
         res.add("embedding", R.FAIL, str(e).replace("\n", " "))
 

@@ -811,7 +811,12 @@ def operational_graph(be, exclude_qubits=(), exclude_edges=(), max_2q_error=None
     pass a coupler on its CZ calibration while its rzz is dead (phoenix
     2026-11-02: rzz 31-32 error 1.0, CZ 0.017).  With a threshold set, a
     qubit or a required gate with no calibration counts as failing it: a
-    missing number is not evidence the element works."""
+    missing number is not evidence the element works.
+
+    T2 is deliberately not a cut here: a device-wide floor that would have
+    kept the insertion site off a 70 us qubit (chicago 2026-11-08) removes
+    30 of 120 Nighthawk qubits and no Ns=50 ladder survives.  The floor is
+    applied to the Hadamard-test core instead, in ``choose_embedding``."""
     max_readout_error = _error_cut(max_readout_error, "max_readout_error")
     max_2q_error = _error_cut(max_2q_error, "max_2q_error")
     g0 = Graph.from_backend(be)
@@ -914,6 +919,27 @@ def _error_cut(value, name):
     if not _valid_error(value):
         raise EmbeddingError(f"{name} must be a finite probability between 0 and 1")
     return value
+
+
+def _duration_cut(value, name):
+    """A T2 floor in microseconds: finite and positive, else EmbeddingError."""
+    if value is None:
+        return None
+    value = _calibration_value(value)
+    if not (np.isfinite(value) and value > 0):
+        raise EmbeddingError(f"{name} must be a positive number of microseconds")
+    return value
+
+
+def _t2_us(props, q):
+    """Calibrated T2 of qubit q in microseconds (properties report seconds);
+    None if the device reports none."""
+    try:
+        v = props.t2(q)
+    except Exception:
+        return None
+    v = _calibration_value(v)
+    return None if v is None else v * 1e6
 
 
 def _target_supports(target, name, qargs):
@@ -1238,11 +1264,72 @@ def score_embedding(emb: Embedding, be, basis=None) -> float:
     return s
 
 
+def core_wires(ns: int, center: int) -> dict:
+    """Logical wires of the Hadamard-test core: the insertion site, its two
+    matter neighbours, the links on both sides of it and the ancilla.  These
+    are the qubits W00 (centre + ancilla) and the near-centre J1 sites rest
+    on; everything else enters through damping the mirror corrects."""
+    lat = Lattice(ns)
+    return {"centre": lat.site_qubit(center), "ancilla": lat.ancilla,
+            "neighbours": [lat.site_qubit((center - 1) % ns), lat.site_qubit((center + 1) % ns)],
+            "links": [lat.link_qubit((center - 1) % ns), lat.link_qubit(center % ns)]}
+
+
+def core_t2_us(props, layout, ns: int, center: int) -> dict:
+    """Calibrated T2 (us) of the core qubits of ``layout``; None where the
+    device reports none.  -> {"centre": [q, t2], "ancilla": [q, t2],
+    "qubits": {q: t2}, "min": smallest valid t2 or None}."""
+    wires = core_wires(ns, center)
+    phys = {w: layout[w] for w in [wires["centre"], wires["ancilla"], *wires["neighbours"], *wires["links"]]}
+    t2 = {q: _t2_us(props, q) for q in phys.values()}
+    valid = [v for v in t2.values() if v is not None and np.isfinite(v) and v > 0]
+    return {"centre": [phys[wires["centre"]], t2[phys[wires["centre"]]]],
+            "ancilla": [phys[wires["ancilla"]], t2[phys[wires["ancilla"]]]],
+            "qubits": {int(q): v for q, v in t2.items()},
+            "min": min(valid) if len(valid) == len(t2) else None}
+
+
+def _core_summary(core) -> str:
+    c, a = core["centre"], core["ancilla"]
+    fmt = lambda v: "none" if v is None else f"{v:.0f} us"
+    return (f"centre q{c[0]} {fmt(c[1])}, ancilla q{a[0]} {fmt(a[1])}, core min {fmt(core['min'])}")
+
+
+def _core_t2_floor(scored, props, ns, center, floor, log=None):
+    """Keep the candidates whose Hadamard-test core has every T2 >= floor us
+    (a missing or invalid T2 fails), in score order.  Annotates each
+    candidate's info with its core T2.  Raises EmbeddingError when none passes,
+    listing every candidate so the operator can lower the floor deliberately."""
+    kept, table = [], []
+    for sc, i, e in scored:
+        core = core_t2_us(props, e.layout, ns, center)
+        e.info["core_t2_us"] = core
+        ok = core["min"] is not None and core["min"] >= floor
+        table.append(f"[{'pass' if ok else 'FAIL'}] score {sc:.3f}: {_core_summary(core)}")
+        if ok:
+            kept.append((sc, i, e))
+    if not kept:
+        raise EmbeddingError(
+            f"no candidate layout keeps the Hadamard-test core (site {center} and its neighbours, "
+            f"their links, the ancilla) at T2 >= {floor:g} us; candidates: " + "; ".join(table),
+            diagnostics={"min_core_t2_us": floor, "candidates": table})
+    dropped = len(scored) - len(kept)
+    if kept[0][2] is not scored[0][2]:
+        _log(f"T2 floor {floor:g} us rejects {dropped} of {len(scored)} candidate layout(s), including the "
+             f"best-scoring one ({_core_summary(scored[0][2].info['core_t2_us'])}); "
+             f"taking {_core_summary(kept[0][2].info['core_t2_us'])}", log)
+    elif dropped:
+        _log(f"T2 floor {floor:g} us rejects {dropped} of {len(scored)} candidate layout(s); the best-scoring "
+             f"one passes ({_core_summary(kept[0][2].info['core_t2_us'])})", log)
+    return kept
+
+
 def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
                      max_cycles: int = 4, log=None, gauss_sites=None,
                      allow_transpiler: bool = False, graph=None, beam: int = 64,
                      time_budget_s: float = 600.0, seed: int = SEED,
-                     max_expansions: int = MAX_EXPANSIONS, basis=None) -> Embedding:
+                     max_expansions: int = MAX_EXPANSIONS, basis=None,
+                     min_core_t2_us=None) -> Embedding:
     """mode: auto | ring | ladder | grid | transpiler.  auto = ladder on a
     square lattice (grid cycle if the ladder does not fit), ring on heavy-hex.
     Ties broken by score_embedding.
@@ -1251,7 +1338,16 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
     ``allow_transpiler`` is FALSE by default: a transpiler-chosen layout
     abandons the ladder and skips the layout-preservation assertion, so it must
     be asked for explicitly rather than happening silently on a device with one
-    dead coupler.  Diagnostic commands pass True."""
+    dead coupler.  Diagnostic commands pass True.
+
+    ``min_core_t2_us`` (``--min-t2``) rejects candidates whose Hadamard-test
+    core (``core_wires``) has a qubit with T2 below that many microseconds.
+    The score is a sum over all ~100 qubits and couplers, so the insertion
+    site carries 1/200 of it: on ibm_chicago 2026-11-08 eight ladders scored
+    within 0.1% of each other and the winner put site 24 on q108 (T2 70 us
+    against 170-320 us around it), where the mirror collapsed.  The core T2
+    is recorded in ``info["core_t2_us"]`` whenever properties are available,
+    floor or not."""
     if mode == "transpiler":
         return Embedding("transpiler", ns, center, None)
     g = graph if graph is not None else Graph.from_backend(be)
@@ -1305,8 +1401,23 @@ def choose_embedding(be, ns: int, center: int = CENTER, mode: str = "auto",
         e.validate(g)
     scored = sorted(((score_embedding(e, be, basis), i, e) for i, e in enumerate(cands)),
                     key=lambda x: (x[0], x[1]))
+    floor = _duration_cut(min_core_t2_us, "min_core_t2_us")
+    props = None
+    try:
+        props = be.properties()
+    except Exception:
+        pass
+    if floor is not None:
+        if props is None:
+            raise EmbeddingError("the T2 floor (--min-t2) requires backend properties, but none are available")
+        scored = _core_t2_floor(scored, props, ns, center, floor, log)
+    elif props is not None:
+        for _, _, e in scored:
+            e.info["core_t2_us"] = core_t2_us(props, e.layout, ns, center)
     best = scored[0][2]
     best.info["score"] = scored[0][0]
+    if floor is not None:
+        best.info["min_core_t2_us"] = floor
     if search:
         best.info["search"] = dict(search)
     best.info["n_candidates"] = len(cands)
@@ -1647,7 +1758,7 @@ def assign_block(b: Bundle, n: int, t_total: float, eps: float | None = None):
 def report(targets, ns: int = 50, steps=(1, 12), bases=("cz", "rzz"), mode: str = "auto",
            gadgets=("J0", "J1a"), card=None, cache_dir=None, seed: int = SEED,
            log=print, exclude_qubits=(), exclude_edges=(), max_readout_error=None,
-           max_2q_error=None, allow_transpiler: bool = False) -> list[dict]:
+           max_2q_error=None, allow_transpiler: bool = False, min_t2_us=None) -> list[dict]:
     """Offline count table, selecting a filtered layout for each target x basis."""
     card = card or C.load_card()
     lat = Lattice(ns)
@@ -1660,7 +1771,8 @@ def report(targets, ns: int = 50, steps=(1, 12), bases=("cz", "rzz"), mode: str 
                                          max_readout_error=max_readout_error, max_2q_error=max_2q_error,
                                          basis=basis, log=log)
             emb = choose_embedding(be_b, ns, center, mode=mode, log=log, graph=graph,
-                                   basis=basis, allow_transpiler=allow_transpiler)
+                                   basis=basis, allow_transpiler=allow_transpiler,
+                                   min_core_t2_us=min_t2_us)
             for kind in gadgets:
                 _log(f"== {spec} [{emb.kind}] basis={basis} gadget={kind}", log)
                 bnd = transpile_bundle(be_b, lat, card, emb, steps, basis, kind, seed,

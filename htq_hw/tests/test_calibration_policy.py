@@ -59,6 +59,64 @@ class Backend:
         return self._properties
 
 
+def _properties_with_t2(t2_us):
+    """One T2 per qubit in microseconds (the unit the device reports); None
+    leaves that qubit without a T2 entry."""
+    return BackendProperties.from_dict({
+        "backend_name": "calibration_test", "backend_version": "1",
+        "last_update_date": NOW,
+        "qubits": [[_property("readout_error", 0.01)]
+                   + ([{"name": "T2", "value": v, "date": NOW, "unit": "us"}] if v is not None else [])
+                   for v in t2_us],
+        "gates": [{"gate": "cz", "name": f"cz{u}_{v}", "qubits": [u, v],
+                   "parameters": [_property("gate_error", 0.002)]} for u, v in EDGES],
+        "general": [],
+    })
+
+
+def _ladder(ns, center, layout):
+    return T.Embedding("ladder", ns, center, list(layout))
+
+
+def test_core_wires_are_the_hadamard_test_neighbourhood():
+    w = T.core_wires(4, 1)
+    assert w["centre"] == 2 and w["ancilla"] == 8          # site n -> wire 2n, ancilla 2ns
+    assert w["neighbours"] == [0, 4] and w["links"] == [1, 3]
+    assert T.core_wires(4, 0)["neighbours"] == [6, 2]        # periodic: site -1 is site 3
+
+
+def test_core_t2_reads_microseconds_and_flags_missing():
+    props = _properties_with_t2([50.0, 200.0, 200.0, 200.0, None, 300.0, 300.0, 300.0, 120.0])
+    assert T._t2_us(props, 1) == pytest.approx(200.0)      # the device reports seconds
+    core = T.core_t2_us(props, list(range(9)), 4, 1)        # identity layout: wires 0..8
+    assert core["centre"] == [2, pytest.approx(200.0)] and core["ancilla"] == [8, pytest.approx(120.0)]
+    assert set(core["qubits"]) == {0, 1, 2, 3, 4, 8}
+    assert core["min"] is None                              # wire 4 has no T2: the core is not vouched for
+    full = T.core_t2_us(props, [0, 1, 2, 3, 5, 6, 7, 4, 8], 4, 1)  # q4 moved out of the core
+    assert full["min"] == pytest.approx(50.0)
+
+
+def test_core_t2_floor_keeps_score_order_among_passing_candidates():
+    props = _properties_with_t2([50.0, 200.0, 200.0, 200.0, 180.0, 300.0, 300.0, 300.0, 120.0])
+    good = _ladder(4, 1, [1, 2, 3, 4, 5, 6, 7, 0, 8])        # core on 1,2,3,4,5 and ancilla 8
+    short = _ladder(4, 1, list(range(9)))                    # core contains q0 (50 us)
+    scored = [(1.0, 0, short), (1.1, 1, good)]
+    kept = T._core_t2_floor(scored, props, 4, 1, 100.0)
+    assert [e for _, _, e in kept] == [good]
+    assert short.info["core_t2_us"]["min"] == pytest.approx(50.0)
+    loose = T._core_t2_floor(scored, props, 4, 1, 40.0)
+    assert [e for _, _, e in loose] == [short, good]        # nothing rejected: score order kept
+    with pytest.raises(T.EmbeddingError, match="T2 >= 250") as err:
+        T._core_t2_floor(scored, props, 4, 1, 250.0)
+    assert "FAIL" in str(err.value) and "centre q2" in str(err.value)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), 0.0, -5.0])
+def test_t2_floor_must_be_positive_microseconds(value):
+    with pytest.raises(T.EmbeddingError, match="min_core_t2_us"):
+        T._duration_cut(value, "min_core_t2_us")
+
+
 @pytest.mark.parametrize("properties", [None, RuntimeError("properties unavailable")])
 @pytest.mark.parametrize("cut", ["max_readout_error", "max_2q_error"])
 def test_requested_cuts_require_backend_properties(properties, cut):
