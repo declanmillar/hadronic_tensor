@@ -495,12 +495,15 @@ def _as_cards(card) -> dict:
 def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
           families=("j0", "j1p1", "j1p2"), basis: str = "cz", tol: float = 5e-3, cap: int = 512,
           threads: int = 2, cache_dir=None, seed: int = T.SEED, mirrors: bool = True, log=None,
-          specs=None) -> dict:
+          specs=None, twirl: bool = False) -> dict:
     """Submission-path validation.  For each family: the ISA base (mapped back
     to the logical register) from |0> vs the ideal t = 0 row; then for every t
     the ISA block (mapped back through the base's final layout) from the
     cached prep state + logical gadget, physics vs the ideal row at t and
     mirror vs the t = 0 row.  Raises AssertionError above ``tol``.
+    With ``twirl`` every ISA circuit is checked as one Pauli-twirled instance
+    (target.twirl, as ``--pre-twirl`` submits them), so the twirl's unitary
+    equivalence is verified on the production circuits themselves.
 
     ``card`` is one card dict or a {name: card} mapping (a composed campaign);
     with several cards every card is checked and the keys carry its name.
@@ -541,8 +544,10 @@ def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
         kind, off = CP.FAMILY_GADGET[fam]
         b = T.transpile_bundle(be, lat, card, emb, steps, basis, kind, seed, cache_dir, log=log,
                                gadget_center=emb.center + off if off else None, tails=tails)
+        trng = np.random.default_rng([int(seed), sum(map(ord, fam))]) if twirl else None
+        base = T.twirl(b.base, trng) if twirl else b.base
         # base from |0>
-        base_rel, wire = relabel_to_logical(b.base, emb.layout if emb.layout else b.base.layout.initial_index_layout(), lat.n_wires)
+        base_rel, wire = relabel_to_logical(base, emb.layout if emb.layout else b.base.layout.initial_index_layout(), lat.n_wires)
         fw = final_wires(range(lat.n_wires), b.base_layout, wire)
         mapped = {k: remap(op, fw, base_rel.num_qubits) for k, op in obs.items()}
         d = expectations(sim, base_rel, mapped, perm=perm)
@@ -561,6 +566,8 @@ def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
             for label, circ, t_ref in (("physics", blk["physics"], t), ("mirror", blk["mirror"], 0.0)):
                 if label == "mirror" and not mirrors:
                     continue
+                if twirl:
+                    circ = T.twirl(circ, trng)
                 rel, wire = relabel_to_logical(circ, b.base_layout, lat.n_wires)
                 full = QuantumCircuit(rel.num_qubits)
                 full.compose(gad, range(lat.n_wires), inplace=True)
@@ -568,7 +575,7 @@ def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
                 fw = final_wires(range(lat.n_wires), blk["layout"], wire)
                 mapped = {k: remap(op, fw, rel.num_qubits) for k, op in obs.items()}
                 d = expectations(sim, full, mapped, init, perm=perm)
-                tag = f"{fam} {label} t={CP.QuarterTime(t):.1f}"
+                tag = f"{fam} {label} t={CP.QuarterTime(t):.1f}" + (" (twirled)" if twirl else "")
                 if label == "mirror" and MIRROR_EPS > MIRROR_EPS_IDENTITY:
                     # a mirror run at a raised angle (--mirror-eps) is a real
                     # evolution to t = eps, which the grid has no row for: the

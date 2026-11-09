@@ -16,7 +16,7 @@ from htq_hw import MIRROR_EPS
 from htq_hw import campaign as CP
 from htq_hw import circuits as C
 from htq_hw import target as T
-from htq_hw.__main__ import _twirl_gates
+from htq_hw.__main__ import _twirl_gates, main
 from htq_hw.model import Lattice
 
 
@@ -102,12 +102,122 @@ def test_check_validates_a_raised_mirror_angle_against_the_logical_mirror(tmp_pa
         S.check(be, lat, card, emb, tpl, [0.0, 0.5], families=("j0",), threads=2, tol=5e-3, log=None)
 
 
-@pytest.mark.parametrize("fractional,flag,expected", [
-    (False, None, True), (True, None, False),
-    (False, False, False), (True, True, True), (True, False, False),
+@pytest.mark.parametrize("fractional,flag,pre,expected", [
+    (False, None, 0, True), (True, None, 0, False),
+    (False, False, 0, False), (True, False, 0, False), (False, True, 0, True),
+    (False, None, 4, False), (True, None, 4, False), (True, False, 4, False),
 ])
-def test_gate_twirling_rule_and_cli_mapping(fractional, flag, expected):
-    assert CP.gate_twirling(fractional, flag) is expected
+def test_gate_twirling_rule(fractional, flag, pre, expected):
+    assert CP.gate_twirling(fractional, flag, pre) is expected
+
+
+def test_gate_twirling_refuses_what_the_runtime_refuses():
+    """ibm_chicago, 8 Nov 2026: the Sampler's gate twirling on rzz circuits
+    passed the acceptance and failed at submission (error 1519)."""
+    with pytest.raises(ValueError, match="1519"):
+        CP.gate_twirling(True, True)
+    with pytest.raises(ValueError, match="exclusive"):
+        CP.gate_twirling(False, True, 4)
+    with pytest.raises(SystemExit, match="1519"):
+        main(["--twirl-gates", "on", "plan", "--target", "grid:4x5", "--basis", "rzz"])
+    with pytest.raises(SystemExit, match="K >= 2"):
+        main(["--pre-twirl", "1", "plan", "--target", "grid:4x5", "--basis", "rzz"])
+
+
+def test_twirl_names_and_shot_split():
+    assert CP.twirl_name("j0_t2.0_Z", 3) == "j0_t2.0_Z#3"
+    assert CP.split_twirl_name("j0_t2.0_Z#3") == ("j0_t2.0_Z", 3)
+    assert CP.split_twirl_name("mirror-diag.prod_k1.26_s0.75_ns50:j0_m2.0_Z#0") == \
+        ("mirror-diag.prod_k1.26_s0.75_ns50:j0_m2.0_Z", 0)
+    assert CP.split_twirl_name("j0_t2.0_Z") == ("j0_t2.0_Z", None)
+    assert CP.split_shots(60000, 4) == [15000] * 4
+    assert CP.split_shots(10, 4) == [3, 3, 2, 2]
+    with pytest.raises(ValueError):
+        CP.split_shots(3, 4)
+
+
+def test_pre_twirl_job_keeps_skeletons_and_draws_reproducibly():
+    from htq_hw.tests.test_campaign import _small_pubs
+    card, lat, center, be, emb, specs, pubs, info, bundles = _small_pubs(basis="rzz", ns=6, times=(0.5,),
+                                                                          target="grid:4x5")
+    names = [s.name for s in specs]
+    shots = {n: 100 for n in names}
+    insts = CP.pre_twirl_job(pubs, info, shots, names, 3, T.SEED, job_index=5)
+    assert [i["instance"] for i in insts] == [0, 1, 2]
+    for inst in insts:
+        assert inst["names"] == [CP.twirl_name(n, inst["instance"]) for n in names]
+        for n in names:
+            tn = CP.twirl_name(n, inst["instance"])
+            assert T.skeleton(inst["pubs"][tn]) == T.skeleton(pubs[n])
+            assert inst["pubs"][tn].count_ops().get("rzz", 0) == pubs[n].count_ops().get("rzz", 0)
+            assert inst["info"][tn]["twirl_of"] == n and inst["info"][tn]["twirl_instances"] == 3
+            assert inst["info"][tn]["skeleton_full"] == info[n]["skeleton_full"]
+    assert [sum(i["shots"][CP.twirl_name(names[0], i["instance"])] for i in insts)] == [100]
+    # instances differ from each other, and a resumed job re-draws the same ones
+    assert insts[0]["pubs"][CP.twirl_name(names[0], 0)] != insts[1]["pubs"][CP.twirl_name(names[0], 1)]
+    again = CP.pre_twirl_job(pubs, info, shots, names, 3, T.SEED, job_index=5)
+    assert again[1]["pubs"][CP.twirl_name(names[0], 1)] == insts[1]["pubs"][CP.twirl_name(names[0], 1)]
+    with pytest.raises(ValueError):
+        CP.pre_twirl_job(pubs, info, shots, names, 1, T.SEED)
+
+
+def test_pre_twirled_submission_round_trip(tmp_path):
+    """Local testing mode on FakeNighthawk, rzz, two instances: K instance jobs per
+    job, one twirl group each; fetch merges a group back under the pubs' own
+    names with the shots summed, and load_job_bits reads it unchanged."""
+    import json
+    import numpy as np
+    from htq_hw import analyze as A
+    from htq_hw.tests.test_campaign import _small_pubs
+    card, lat, center, be, emb, specs, pubs, info, bundles = _small_pubs(basis="rzz", ns=6, times=(0.5,),
+                                                                          target="fake:nighthawk")
+    shots = {n: 64 for n in pubs}
+    jobs = CP.group_jobs(specs, max_pubs=8)
+    recs = CP.submit(be, pubs, info, shots, jobs, lat, emb, "rzz", str(tmp_path), tag="tw", pre_twirl=2)
+    assert len(recs) == 2 * len(jobs)
+    groups = {}
+    for r in recs:
+        meta = json.load(open(r["path"]))
+        assert meta["options"]["pre_twirl"] == 2 and meta["options"]["twirling_gates"] is False
+        tw = meta["twirl"]
+        assert tw["instances"] == 2 and tw["of"] == jobs[meta["job_index"]]
+        assert meta["pub_names"] == [CP.twirl_name(n, tw["instance"]) for n in tw["of"]]
+        assert all(meta["shots"][n] == 32 for n in meta["pub_names"])
+        groups.setdefault(tw["group"], []).append(meta)
+    assert len(groups) == len(jobs)
+    for g, metas in groups.items():
+        assert sorted(m["twirl"]["instance"] for m in metas) == [0, 1] and metas[0]["job_id"] == g
+    paths = CP.fetch_all([(r["job"], r["meta"]) for r in recs], str(tmp_path))
+    assert len(paths) == len(jobs)
+    for path, names in zip(paths, jobs):
+        z = np.load(path, allow_pickle=True)
+        assert list(z["pub_names"]) == names and len(z["twirl_jobs"]) == 2 and int(z["twirl_instances"]) == 2
+        for n in names:
+            assert z[n].shape == (64, lat.n_wires) and z[n].dtype == np.uint8
+        jb = A.load_job_bits(path, lat)
+        assert set(jb.bits) == set(names)
+    # a single instance record finds its siblings' records on disk (their jobs
+    # are then fetched by id), and a group with an instance missing is refused
+    one = recs[0]
+    metas = CP.twirl_group_metas(one["meta"], str(tmp_path))
+    assert [m["twirl"]["instance"] for m in metas] == [0, 1]
+    assert metas[0]["job_id"] == one["meta"]["twirl"]["group"] and metas[1]["job_id"] == recs[1]["meta"]["job_id"]
+    with pytest.raises(ValueError, match="instances \\[0\\] of 2"):
+        CP.fetch(one["job"], one["meta"], str(tmp_path / "again"), meta_dir=str(tmp_path / "nowhere"))
+
+
+def test_check_passes_on_twirled_rzz_circuits(tmp_path):
+    import os
+    from htq_hw import sim as S
+    card = C.load_card()
+    lat = Lattice(6)
+    tpl = os.path.join(str(tmp_path), "ideal6t_{family}.npz")
+    S.write_ideal_grids(card, 6, 2, ("j0",), [0.0, 0.5], tpl, threads=2)
+    be = T.resolve_backend("grid:4x5", fractional=True)
+    emb = T.choose_embedding(be, 6, 2)
+    res = S.check(be, lat, card, emb, tpl, [0.0, 0.5], families=("j0",), basis="rzz", threads=2,
+                  tol=5e-3, log=None, twirl=True)
+    assert max(res.values()) < 5e-3 and ("j0", "mirror t=0.5") in res
 
 
 def test_twirl_flag_parses_to_override():
@@ -145,10 +255,13 @@ def test_submission_records_twirling_and_mirror_angle(tmp_path, monkeypatch, res
     common = dict(pubs={"p0": None}, info={"p0": {"n2q": 1}}, shots={"p0": 100}, jobs=[["p0"]],
                   lat=lat, emb=emb, log=None)
     htq_hw.set_mirror_eps(0.05)
-    recs = CP.submit("fake", basis="rzz", out_dir=str(tmp_path / "a"), twirl_gates=True, **common)
+    with pytest.raises(ValueError, match="1519"):          # the Runtime would refuse it
+        CP.submit("fake", basis="rzz", out_dir=str(tmp_path / "a"), twirl_gates=True, **common)
+    recs = CP.submit("fake", basis="cz", out_dir=str(tmp_path / "a"), twirl_gates=True, **common)
     assert seen["twirl"] is True
     assert recs[0]["meta"]["options"] == {"twirling_gates": True, "twirling_measure": True,
-                                           "dd": "XY4", "mirror_eps": 0.05}
+                                           "dd": "XY4", "mirror_eps": 0.05, "pre_twirl": 0}
+    assert "twirl" not in recs[0]["meta"]
     recs = CP.submit("fake", basis="rzz", out_dir=str(tmp_path / "b"), **common)
     assert seen["twirl"] is False and recs[0]["meta"]["options"]["twirling_gates"] is False
     recs = CP.submit("fake", basis="cz", out_dir=str(tmp_path / "c"), **common)

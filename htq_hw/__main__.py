@@ -375,20 +375,22 @@ def cmd_submit(args):
                          args.guard, tag=args.tag, log=log, est_seconds=est_s,
                          strict_guard=not args.no_strict_guard, batch=not args.no_batch,
                          estimate_wait=args.estimate_wait, job_indices=args.only_jobs,
-                         twirl_gates=_twirl_gates(args))
+                         twirl_gates=_twirl_gates(args), pre_twirl=args.pre_twirl)
     except CP.BudgetError as e:
         raise SystemExit(f"budget guard: {e}")
     if not args.real and args.fetch:
-        for r in recs:
-            CP.fetch(r["job"], r["meta"], args.out, log=log)
+        CP.fetch_all([(r["job"], r["meta"]) for r in recs], args.out, log=log)
 
 
 def cmd_fetch(args):
     from . import campaign as CP
+    items = []
     for path in args.meta:
         with open(path) as f:
             meta = json.load(f)
-        CP.fetch(meta["job_id"], meta, args.out, log=log)
+        items.append((meta["job_id"], meta))
+    # a twirl group's other instance records live next to the ones given
+    CP.fetch_all(items, args.out, log=log, meta_dir=os.path.dirname(os.path.abspath(args.meta[0])))
 
 
 def cmd_qpdf(args):
@@ -498,7 +500,7 @@ def cmd_acceptance(args):
                  kappa_tol=args.kappa_tol, refs=args.refs,
                  keep_rehearsal=args.keep_rehearsal, log=log,
                  exclude_qubits=_excluded_qubits(args), exclude_edges=_excluded_edges(args),
-                 mirror_eps=args.mirror_eps, twirl_gates=_twirl_gates(args),
+                 mirror_eps=args.mirror_eps, twirl_gates=_twirl_gates(args), pre_twirl=args.pre_twirl,
                  **_error_cuts(args))
     path = R.write_record(record_path, "acceptance", rec, rec["status"])
     print()
@@ -645,7 +647,14 @@ def main(argv=None):
                          "the acceptance record and every job's options")
     ap.add_argument("--twirl-gates", choices=["auto", "on", "off"], default="auto",
                     help="Sampler two-qubit gate twirling: auto = on for CZ, off for rzz (the "
-                         "historical rule); on/off override it. Recorded with the jobs")
+                         "Runtime refuses it for fractional gates, error 1519); off overrides "
+                         "for CZ. Recorded with the jobs. To twirl rzz circuits use --pre-twirl")
+    ap.add_argument("--pre-twirl", type=int, default=0, metavar="K",
+                    help="transpile-time Pauli twirling: every pub becomes K twirled instances of "
+                         "its ISA circuit (cz: 16-pair Clifford twirl, rzz: 8-pair commutant twirl; "
+                         "two-qubit skeleton unchanged), submitted as K pubs of shots/K in K "
+                         "instance jobs and merged back by fetch under the pub's own name. The "
+                         "Sampler's gate twirling is off. Recorded with the jobs (options.pre_twirl, twirl)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     e = sub.add_parser("embed")
@@ -834,6 +843,15 @@ def main(argv=None):
         import htq_hw
         htq_hw.set_mirror_eps(args.mirror_eps)
         log(f"mirror block total angle set to {args.mirror_eps:g} (default {MIRROR_EPS:g})")
+    if getattr(args, "pre_twirl", 0) == 1 or getattr(args, "pre_twirl", 0) < 0:
+        raise SystemExit("--pre-twirl needs K >= 2 instances (0 disables it)")
+    if hasattr(args, "basis"):
+        # refuse the Runtime-rejected combination here, not after the acceptance has passed
+        from . import campaign as CP
+        try:
+            CP.gate_twirling(args.basis == "rzz", _twirl_gates(args), getattr(args, "pre_twirl", 0))
+        except ValueError as e:
+            raise SystemExit(str(e))
     if getattr(args, "weighting", None) is None and hasattr(args, "preset"):
         args.weighting = "equal" if args.preset else "kappa"
     args.fn(args)

@@ -227,20 +227,24 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
         refs: str = "data/qpdf_card_refs.npz", keep_rehearsal: str | None = None,
         log=print, exclude_qubits=(), exclude_edges=(), max_readout_error=None,
         max_2q_error=None, mirror_eps: float | None = None,
-        twirl_gates: bool | None = None) -> dict:
+        twirl_gates: bool | None = None, pre_twirl: int = 0) -> dict:
     """-> the record dict (also the return value of the CLI).
 
-    ``mirror_eps`` and ``twirl_gates`` are the ``--mirror-eps`` / ``--twirl-gates``
-    settings the submission will use; the first is applied here (it changes the
-    circuits the record validates), both are recorded under ``options``."""
+    ``mirror_eps``, ``twirl_gates`` and ``pre_twirl`` are the ``--mirror-eps`` /
+    ``--twirl-gates`` / ``--pre-twirl`` settings the submission will use.  The
+    first is applied here (it changes the circuits the record validates); with
+    ``pre_twirl`` the runtime step preflights the twirled instances that will
+    be submitted and the check step simulates twirled circuits; all three are
+    recorded under ``options``."""
     import htq_hw
     res, t0 = Result(), time.time()
     steps = STEPS_FULL if level == "full" else STEPS_FAST
     if mirror_eps is not None:
         htq_hw.set_mirror_eps(mirror_eps)
     res.extra["options"] = {"mirror_eps": float(htq_hw.MIRROR_EPS),
-                            "twirling_gates": CP.gate_twirling(basis == "rzz", twirl_gates),
-                            "twirling_measure": True, "dd": "XY4"}
+                            "twirling_gates": CP.gate_twirling(basis == "rzz", twirl_gates, pre_twirl),
+                            "twirling_measure": True, "dd": "XY4",
+                            "pre_twirl": int(pre_twirl) if pre_twirl > 1 else 0}
 
     # ---- A0 environment -------------------------------------------------
     env = R.env_stamp()
@@ -407,9 +411,18 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
     if plan is not None and jobs is not None and "runtime" in steps:
         try:
             checked = CP.preflight_runtime(be, pubs, plan["shots"], jobs)
-            res.add("runtime", R.PASS,
-                    f"{checked['pubs']} pubs in {checked['jobs']} jobs pass Runtime input checks",
-                    **checked)
+            detail = f"{checked['pubs']} pubs in {checked['jobs']} jobs pass Runtime input checks"
+            if pre_twirl > 1:
+                # the twirled instances are what will be submitted: build them
+                # exactly as submit does (same seeds) and preflight every one
+                n_inst = 0
+                for k, names in enumerate(jobs):
+                    for inst in CP.pre_twirl_job(pubs, info, plan["shots"], names, pre_twirl, T.SEED, k):
+                        CP.preflight_runtime(be, inst["pubs"], inst["shots"], [inst["names"]], job_indices=[k])
+                        n_inst += len(inst["names"])
+                detail += f"; {n_inst} pre-twirled instances ({pre_twirl} per pub) pass too, skeletons kept"
+                checked["twirled_pubs"] = n_inst
+            res.add("runtime", R.PASS, detail, **checked)
             runtime_ok = True
         except Exception as e:
             res.add("runtime", R.FAIL, f"{type(e).__name__}: {e}")
@@ -423,10 +436,11 @@ def run(target: str, presets, ns: int = 50, basis: str = "cz", level: str = "fas
             # has one), so the tail blocks are checked before they are run
             ct = list(times) if times is not None else sorted({0.0, 0.5} | set(_rehearse_times(specs)))
             r = S.check(be, lat, cards, emb, tpl, ct, basis=basis, tol=tol,
-                        threads=threads, cache_dir=cache_dir, log=log, specs=specs)
+                        threads=threads, cache_dir=cache_dir, log=log, specs=specs, twirl=pre_twirl > 1)
             worst = max(r.values()) if r else 0.0
             res.add("check", R.PASS if worst <= tol else R.FAIL,
-                    f"{len(r)} circuits, worst {worst:.2e} (tol {tol:g})", worst=worst)
+                    f"{len(r)} circuits{' (twirled instances)' if pre_twirl > 1 else ''}, "
+                    f"worst {worst:.2e} (tol {tol:g})", worst=worst)
         except Exception as e:
             res.add("check", R.FAIL, f"{type(e).__name__}: {str(e)[:200]}")
 

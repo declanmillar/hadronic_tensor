@@ -175,14 +175,28 @@ one campaign and `analyze --prefix` picks one card at a time:
 | relA-im | relA_k1.26_s0.75_ns50 | 261 | the same for all four components: Y copies of j0/j1p1/j1p2 x 3 readouts with the j0 and j1p1 mirrors in both bases, 9 Y refs |
 | prod-quarter | prod_k1.26_s0.75_ns50 | 75 | the other half of the time grid (section 4.5): j0 slices at t = 0.25, 0.75, ..., 5.75, each n full steps plus a half step, with 3 j0 mirrors and 3 refs |
 | relA-quarter | relA_k1.26_s0.75_ns50 | 189 | the same for all four components (9 physics + 6 mirrors per slice, 9 refs) |
-| mirror-diag | prod_k1.26_s0.75_ns50 | 7 | the mirror itself under test: j0 x Z physics and mirror at t = 2, 4, 6 plus the t = 0 reference, for `--twirl-gates on` and `--mirror-eps` variants (the 6 November 2026 ibm_chicago rzz mirrors lost the odd sites around the insertion while the physics circuits damped normally) |
+| mirror-diag | prod_k1.26_s0.75_ns50 | 7 | the mirror itself under test: j0 x Z physics and mirror at t = 2, 4, 6 plus the t = 0 reference, for `--pre-twirl` and `--mirror-eps` variants (the 6 November 2026 ibm_chicago rzz mirrors lost the odd sites around the insertion while the physics circuits damped normally) |
 
-Two global switches change how the mirror is run, and both are written into
+Three global switches change how the mirror is run, and all are written into
 the acceptance record (`options`) and every job's `options`: `--mirror-eps
 ANGLE` sets the mirror block's total angle (default 1e-8; the skeleton
-invariant holds for any value), and `--twirl-gates auto|on|off` overrides the
-Sampler's two-qubit gate twirling, which is otherwise on for CZ and off for
-rzz.
+invariant holds for any value); `--twirl-gates auto|on|off` overrides the
+Sampler's two-qubit gate twirling, which is on for CZ and off for rzz because
+the Runtime refuses it for fractional gates (error 1519, so `on` with `--basis
+rzz` is refused at parse time rather than by the server after the acceptance
+has passed); and `--pre-twirl K` twirls at transpile time instead
+(`target.twirl`, from the Loschmidt pass 6 of August 2026: cz gets the
+16-pair Clifford twirl, rzz the 8-pair commutant twirl, two-qubit skeleton
+unchanged).  With `--pre-twirl K` every pub becomes K twirled instances of its
+ISA circuit named `<pub>#k`, each with shots/K, and every job becomes K
+instance jobs (one instance of each of its pubs, so a job keeps its
+physics/mirror pairing and its size); the instance records share a `twirl`
+block whose `group` is the first instance's job id, `fetch` concatenates a
+group back under the pubs' own names into `htq_bits_<group>.npz`, and the
+analysis never sees the instances.  The acceptance then preflights the
+instances that will be submitted and runs the `check` step on twirled
+circuits, which verifies the twirl's unitary equivalence on the production
+circuits themselves.
 
 Pairing (`group_jobs`, max 8 pubs): a calibration group = the physics pubs
 of one (card, t, readout, dt) and their mirror(s); jobs never mix cards or

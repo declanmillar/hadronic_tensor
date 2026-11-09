@@ -26,6 +26,7 @@ qiskit-ibm-runtime local testing mode (SamplerV2(mode=FakeBoston())).
 """
 
 import contextlib
+import glob
 import hashlib
 import json
 import os
@@ -653,10 +654,84 @@ def preflight_runtime(be, pubs: dict, shots: dict, jobs: list[list[str]],
     return {"jobs": len(jobs), "pubs": count}
 
 
-def gate_twirling(fractional: bool, twirl_gates: bool | None = None) -> bool:
+RUNTIME_RZZ_TWIRL_ERROR = ("IBM Runtime refuses gate twirling for fractional gates (error 1519: "
+                           "'Gate twirling does not support fractional gates'); twirl rzz circuits "
+                           "at transpile time instead with --pre-twirl K")
+
+
+def gate_twirling(fractional: bool, twirl_gates: bool | None = None, pre_twirl: int = 0) -> bool:
     """Whether the Sampler twirls two-qubit gates: off for fractional (rzz)
-    circuits unless ``twirl_gates`` says otherwise (``--twirl-gates``)."""
-    return (not fractional) if twirl_gates is None else bool(twirl_gates)
+    circuits, off whenever the circuits are pre-twirled (``--pre-twirl``),
+    else on, unless ``twirl_gates`` (``--twirl-gates``) overrides.  Asking the
+    Sampler to twirl fractional circuits is refused here rather than by the
+    server after the acceptance has passed (ibm_chicago, 8 November 2026)."""
+    if pre_twirl > 1:
+        if twirl_gates:
+            raise ValueError("--twirl-gates on and --pre-twirl are exclusive: pre-twirled circuits "
+                             "are submitted with the Sampler's gate twirling off")
+        return False
+    if twirl_gates is None:
+        return not fractional
+    if twirl_gates and fractional:
+        raise ValueError(RUNTIME_RZZ_TWIRL_ERROR)
+    return bool(twirl_gates)
+
+
+# ------------------------------------------------------------------ transpile-time twirling
+# The Runtime's gate twirling rejects fractional gates, but pre-twirled circuits
+# are just circuits (scripts/rzz_twirl.py, Loschmidt pass 6, August 2026).  Each
+# pub becomes K Pauli-twirled instances of its ISA circuit (target.twirl: cz
+# gets the 16-pair Clifford twirl, rzz the 8-pair commutant twirl; the 2q
+# skeleton is unchanged), submitted as K pubs of shots/K each, one instance
+# per job so a job keeps its physics/mirror pairing and its size.  ``fetch``
+# merges the instances back under the pub's own name, so the analysis never
+# sees them.
+TWIRL_SEP = "#"
+
+
+def twirl_name(name: str, i: int) -> str:
+    return f"{name}{TWIRL_SEP}{i}"
+
+
+def split_twirl_name(name: str) -> tuple[str, int | None]:
+    """'j0_t2.0_Z#3' -> ('j0_t2.0_Z', 3); an untwirled name -> (name, None)."""
+    base, sep, idx = name.rpartition(TWIRL_SEP)
+    return (base, int(idx)) if sep and idx.isdigit() else (name, None)
+
+
+def split_shots(n: int, k: int) -> list[int]:
+    """n shots over k instances, the remainder on the first ones; every part >= 1."""
+    if k < 1 or n < k:
+        raise ValueError(f"cannot split {n} shots over {k} instances")
+    base, rem = divmod(int(n), int(k))
+    return [base + (1 if i < rem else 0) for i in range(k)]
+
+
+def pre_twirl_job(pubs: dict, info: dict, shots: dict, names: list, k: int, seed: int,
+                  job_index: int = 0) -> list[dict]:
+    """The K instance jobs of one job: [{'instance', 'names', 'pubs', 'shots', 'info'}].
+
+    Instance i of every pub is drawn from rng(seed, job_index, i), so a resumed
+    job re-draws the same circuits.  Each twirled circuit must keep its pub's
+    two-qubit skeleton (the mirror mitigation's invariant), asserted here."""
+    if k < 2:
+        raise ValueError("pre-twirling needs at least 2 instances")
+    parts = {n: split_shots(shots[n], k) for n in names}
+    out = []
+    for i in range(k):
+        rng = np.random.default_rng([int(seed), int(job_index), i])
+        inst = {"instance": i, "names": [], "pubs": {}, "shots": {}, "info": {}}
+        for n in names:
+            tq = T.twirl(pubs[n], rng)
+            if T.skeleton(tq) != T.skeleton(pubs[n]):
+                raise AssertionError(f"twirled instance {i} of {n} changed the two-qubit skeleton")
+            tn = twirl_name(n, i)
+            inst["names"].append(tn)
+            inst["pubs"][tn] = tq
+            inst["shots"][tn] = parts[n][i]
+            inst["info"][tn] = dict(info.get(n, {}), twirl_of=n, twirl_instance=i, twirl_instances=k)
+        out.append(inst)
+    return out
 
 
 def _sampler(mode, fractional: bool, shots_default: int | None = None,
@@ -771,8 +846,13 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
            batch: bool = True, job_offset: int = 0,
            estimate_wait: float = ESTIMATE_WAIT_SECONDS,
            job_indices: list[int] | None = None,
-           twirl_gates: bool | None = None) -> list[dict]:
+           twirl_gates: bool | None = None, pre_twirl: int = 0,
+           twirl_seed: int = T.SEED) -> list[dict]:
     """Submit one SamplerV2 job per name list; write data/hw/htq_job_<id>.json.
+    With ``pre_twirl`` = K > 1 each name list becomes K instance jobs of
+    pre-twirled circuits (pre_twirl_job), all carrying the same job_index and a
+    ``twirl`` record whose ``group`` is the first instance's job id; ``fetch``
+    merges a group back into one bits file.
     ``mode`` is a real backend (from QiskitRuntimeService) or a fake backend /
     AerSimulator for local testing mode.
 
@@ -793,7 +873,17 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
     indices = list(range(job_offset, job_offset + len(jobs))) if job_indices is None else list(job_indices)
     if len(indices) != len(jobs):
         raise ValueError("job_indices must have one entry per job")
-    preflight_runtime(mode, pubs, shots, jobs, job_indices=indices)
+    # what is actually sent: the pubs themselves, or their twirled instances
+    plan = []
+    for k, names in enumerate(jobs):
+        if pre_twirl > 1:
+            plan.append(pre_twirl_job(pubs, info, shots, names, pre_twirl, twirl_seed, indices[k]))
+        else:
+            plan.append([{"instance": None, "names": list(names), "pubs": {n: pubs[n] for n in names},
+                          "shots": {n: int(shots[n]) for n in names}, "info": {n: info.get(n, {}) for n in names}}])
+    for k, insts in enumerate(plan):
+        for inst in insts:
+            preflight_runtime(mode, inst["pubs"], inst["shots"], [inst["names"]], job_indices=[indices[k]])
     os.makedirs(out_dir, exist_ok=True)
     fractional = basis == "rzz"
     real = T.is_real_backend(mode)
@@ -811,46 +901,57 @@ def submit(mode, pubs: dict, info: dict, shots: dict, jobs: list[list[str]], lat
                 "the remaining allocation could not be read, so this submission cannot be shown to "
                 "fit; nothing was submitted. Check the instance, or pass --no-strict-guard to "
                 "submit without that assurance.")
-    twirl = gate_twirling(fractional, twirl_gates)
+    twirl = gate_twirling(fractional, twirl_gates, pre_twirl)
     options = {"twirling_gates": twirl, "twirling_measure": True, "dd": "XY4",
-               "mirror_eps": float(MIRROR_EPS)}
+               "mirror_eps": float(MIRROR_EPS), "pre_twirl": int(pre_twirl) if pre_twirl > 1 else 0}
     records, cancelled = [], None
     with _batch_ctx(mode, real and batch, log) as bctx:
         smp = _sampler(bctx if bctx is not None else mode, fractional, twirl_gates=twirl)
-        for k, names in enumerate(jobs):
-            job = smp.run([(pubs[n], None, int(shots[n])) for n in names])
-            jid = job.job_id()
-            T._log(f"job {indices[k]}: {jid} with {len(names)} pubs {names}", log)
-            meta = {"job_id": jid, "backend": T.backend_label(mode) if hasattr(mode, "name") else str(mode),
-                    "htq_hw": __version__, "tag": tag, "basis": basis, "ns": lat.ns, "center": emb.center,
-                    "n_logical": lat.n_wires, "embedding": emb.kind, "initial_layout": emb.layout,
-                    "pub_names": names, "shots": {n: int(shots[n]) for n in names},
-                    "pubs": {n: info[n] for n in names}, "job_index": indices[k],
-                    "options": dict(options),
-                    "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
-            path = os.path.join(out_dir, f"htq_job_{jid}.json")
-            meta["guard"] = "pending"
-            with open(path, "w") as f:       # preserve the id even if polling is interrupted
-                json.dump(meta, f, indent=1)
-            try:
-                state = budget_guard(job, service, guard, log,
-                                     estimate_wait=estimate_wait if strict_guard else 0.0) if real else GUARD_OK
-                stop = state == GUARD_OVER or (state == GUARD_UNVERIFIABLE and strict_guard and real)
-                if stop and state == GUARD_UNVERIFIABLE:
-                    _cancel_for_budget(job, state)
-            except _CancellationError as exc:
-                meta.update(guard=exc.guard_state, cancelled=None, cancellation_error=str(exc))
-                with open(path, "w") as f:
+        for k, insts in enumerate(plan):
+            group = None
+            for inst in insts:
+                names = inst["names"]
+                job = smp.run([(inst["pubs"][n], None, int(inst["shots"][n])) for n in names])
+                jid = job.job_id()
+                group = group or jid
+                which = f"job {indices[k]}" + (f" instance {inst['instance']}/{pre_twirl}"
+                                               if inst["instance"] is not None else "")
+                T._log(f"{which}: {jid} with {len(names)} pubs {names}", log)
+                meta = {"job_id": jid, "backend": T.backend_label(mode) if hasattr(mode, "name") else str(mode),
+                        "htq_hw": __version__, "tag": tag, "basis": basis, "ns": lat.ns, "center": emb.center,
+                        "n_logical": lat.n_wires, "embedding": emb.kind, "initial_layout": emb.layout,
+                        "pub_names": names, "shots": {n: int(inst["shots"][n]) for n in names},
+                        "pubs": {n: inst["info"][n] for n in names}, "job_index": indices[k],
+                        "options": dict(options),
+                        "submitted": time.strftime("%Y-%m-%dT%H:%M:%S")}
+                if inst["instance"] is not None:
+                    meta["twirl"] = {"instances": int(pre_twirl), "instance": inst["instance"],
+                                     "group": group, "of": list(jobs[k]), "seed": int(twirl_seed)}
+                path = os.path.join(out_dir, f"htq_job_{jid}.json")
+                meta["guard"] = "pending"
+                with open(path, "w") as f:       # preserve the id even if polling is interrupted
                     json.dump(meta, f, indent=1)
-                raise
-            meta["guard"] = state
-            meta["cancelled"] = bool(stop)
-            with open(path, "w") as f:                      # written either way: never lose an id
-                json.dump(meta, f, indent=1)
-            if stop:
-                cancelled = (k, state)
+                try:
+                    state = budget_guard(job, service, guard, log,
+                                         estimate_wait=estimate_wait if strict_guard else 0.0) if real else GUARD_OK
+                    stop = state == GUARD_OVER or (state == GUARD_UNVERIFIABLE and strict_guard and real)
+                    if stop and state == GUARD_UNVERIFIABLE:
+                        _cancel_for_budget(job, state)
+                except _CancellationError as exc:
+                    meta.update(guard=exc.guard_state, cancelled=None, cancellation_error=str(exc))
+                    with open(path, "w") as f:
+                        json.dump(meta, f, indent=1)
+                    raise
+                meta["guard"] = state
+                meta["cancelled"] = bool(stop)
+                with open(path, "w") as f:                      # written either way: never lose an id
+                    json.dump(meta, f, indent=1)
+                if stop:
+                    cancelled = (k, state)
+                    break
+                records.append({"job": job, "meta": meta, "path": path})
+            if cancelled is not None:
                 break
-            records.append({"job": job, "meta": meta, "path": path})
     if cancelled is not None:
         k, state = cancelled
         left = len(jobs) - k - 1
@@ -878,10 +979,8 @@ def _batch_ctx(mode, use_batch: bool, log=None):
         yield b
 
 
-def fetch(job, meta: dict, out_dir: str = "data/hw", log=None) -> str:
-    """Job result -> data/hw/htq_bits_<id>.npz: one uint8 array (shots,
-    n_logical) per pub name, column i = logical qubit i (the readout layer
-    measures physical layout[i] into clbit i; asserted from the metadata)."""
+def _pub_arrays(job, meta: dict) -> tuple[dict, list]:
+    """One job's result -> ({pub name: uint8 (shots, n_clbits)}, [(name, problem)])."""
     if isinstance(job, str):
         from qiskit_ibm_runtime import QiskitRuntimeService
         job = QiskitRuntimeService().job(job)
@@ -908,16 +1007,90 @@ def fetch(job, meta: dict, out_dir: str = "data/hw", log=None) -> str:
         if cmap is not None and list(cmap) != list(range(n_logical)):
             problems.append((name, "clbit_to_logical is not the identity"))
         out[name] = arr                          # keep it either way
+    return out, problems
+
+
+def twirl_group_metas(meta: dict, out_dir: str) -> list[dict]:
+    """The job records of ``meta``'s twirl group found in ``out_dir``, instance order."""
+    tw = meta.get("twirl")
+    if not tw:
+        return [meta]
+    found = {}
+    for p in glob.glob(os.path.join(out_dir, "htq_job_*.json")):
+        with open(p) as f:
+            m = json.load(f)
+        if (m.get("twirl") or {}).get("group") == tw["group"]:
+            found[m["twirl"]["instance"]] = m
+    found[tw["instance"]] = meta
+    return [found[i] for i in sorted(found)]
+
+
+def fetch(job, meta: dict, out_dir: str = "data/hw", log=None, group=None, meta_dir=None) -> str:
+    """Job result -> data/hw/htq_bits_<id>.npz: one uint8 array (shots,
+    n_logical) per pub name, column i = logical qubit i (the readout layer
+    measures physical layout[i] into clbit i; asserted from the metadata).
+
+    A pre-twirled job (``meta['twirl']``) is fetched as its whole group: the
+    K instance jobs' arrays are concatenated under each pub's own name and
+    written once, as htq_bits_<group id>.npz, with the instance ids recorded.
+    ``group`` is the list of (job or id, meta) of the instances in hand; the
+    missing ones' records are read from ``meta_dir`` (default ``out_dir``) and
+    their jobs fetched by id."""
+    tw = meta.get("twirl")
+    if group is None:
+        group = [(job, meta)]
+    if tw and len(group) < tw["instances"]:
+        have = {m["twirl"]["instance"] for _, m in group}
+        group = list(group) + [(m["job_id"], m) for m in twirl_group_metas(meta, meta_dir or out_dir)
+                               if m["twirl"]["instance"] not in have]
+    if tw:
+        have = sorted(m["twirl"]["instance"] for _, m in group)
+        if have != list(range(tw["instances"])):
+            raise ValueError(f"twirl group {tw['group']}: instances {have} of {tw['instances']} "
+                             f"found in {out_dir}; fetch needs every instance job's record")
+        group = sorted(group, key=lambda jm: jm[1]["twirl"]["instance"])
+    parts, problems, ids = {}, [], []
+    for j, m in group:
+        arrs, probs = _pub_arrays(j, m)
+        ids.append(m["job_id"])
+        problems += [(f"{m['job_id']}:{n}", w) for n, w in probs]
+        for name, arr in arrs.items():
+            base, _ = split_twirl_name(name) if tw else (name, None)
+            parts.setdefault(base, []).append(arr)
+    out = {}
+    for base, arrs in parts.items():
+        widths = {a.shape[1] for a in arrs}
+        if len(widths) > 1:
+            problems.append((base, f"instance widths differ: {sorted(widths)}"))
+        out[base] = np.concatenate(arrs, axis=0) if len(arrs) > 1 else arrs[0]
     # write BEFORE validating: a shape surprise must never lose a paid result
     os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, f"htq_bits_{meta['job_id']}.npz")
-    np.savez_compressed(path, job_id=meta["job_id"], backend=meta["backend"],
-                        pub_names=np.array(meta["pub_names"]), **out)
-    T._log(f"fetched {len(out)} pubs -> {path}", log)
+    file_id = tw["group"] if tw else meta["job_id"]
+    extra = {"twirl_jobs": np.array(ids), "twirl_instances": int(tw["instances"])} if tw else {}
+    path = os.path.join(out_dir, f"htq_bits_{file_id}.npz")
+    np.savez_compressed(path, job_id=file_id, backend=meta["backend"],
+                        pub_names=np.array(list(out)), **extra, **out)
+    T._log(f"fetched {len(out)} pubs" + (f" from {len(ids)} twirl instances" if tw else "") + f" -> {path}", log)
     if problems:
         raise ValueError(f"{path} was written, but {len(problems)} pub(s) look wrong: "
                          + "; ".join(f"{n}: {w}" for n, w in problems))
     return path
+
+
+def fetch_all(items, out_dir: str = "data/hw", log=None, meta_dir=None) -> list[str]:
+    """Fetch [(job or id, meta), ...], one file per job or per twirl group;
+    a group's instances missing from ``items`` are read from ``meta_dir``."""
+    paths, groups, order = [], {}, []
+    for j, m in items:
+        key = (m.get("twirl") or {}).get("group") or m["job_id"]
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append((j, m))
+    for key in order:
+        j, m = groups[key][0]
+        paths.append(fetch(j, m, out_dir, log=log, group=groups[key], meta_dir=meta_dir))
+    return paths
 
 
 def to_legacy_losch_bits(bits) -> dict:
