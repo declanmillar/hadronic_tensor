@@ -78,6 +78,17 @@ p.add_argument("--drop-sites", type=int, nargs="+", default=(), metavar="SITE",
                     "sites 16 and 48 on the 2026-10-06 phoenix embedding)")
 p.add_argument("--beta-min", type=float, default=0.01,
                help="mask probes with |beta| below this (default 0.01)")
+p.add_argument("--sum-rule-min-coverage", type=float, default=0.0, metavar="FRAC",
+               help="apply the charge-conservation projection on 00 and 01 only in slices that "
+                    "retain at least this fraction of sites (default 0: always, the legacy "
+                    "behaviour).  The projection's target is the reference's sum over the "
+                    "masked sites, so under heavy masking it writes the reference into the "
+                    "hardware map; 0.9 confines it to slices that are nearly all hardware")
+p.add_argument("--unmeasured-error", default="none", choices=("none", "ref"),
+               help="'ref': count every masked site as unmeasured, with an error equal to the "
+                    "matched reference |G| there, added in quadrature to W_err (and so to the "
+                    "plotted bands); 'none' (default, legacy): a masked site carries no error, "
+                    "as if it were known to vanish")
 p.add_argument("--window", default="gauss", choices=("gauss", "kaiser", "dpss", "rect"),
                help="time taper (default gauss, the published choice); --sig-t-p is its width knob")
 p.add_argument("--sig-t-p", type=float, default=None,
@@ -100,6 +111,8 @@ if not (np.isfinite(args.tmax) and args.tmax >= 0 and np.isfinite(args.sig_xf) a
     p.error("--tmax must be nonnegative and --sig-xf positive")
 if not np.isfinite(args.kap_min) or not (np.isfinite(args.beta_min) and args.beta_min >= 0):
     p.error("--kap-min must be finite and --beta-min finite and nonnegative")
+if not (np.isfinite(args.sum_rule_min_coverage) and 0 <= args.sum_rule_min_coverage <= 1):
+    p.error("--sum-rule-min-coverage must be a fraction in [0, 1]")
 if not (np.isfinite(args.q0_range).all() and args.q0_range[0] < args.q0_range[1]):
     p.error("--q0-range requires finite MIN < MAX")
 out = (check_output_prefix(args.out if args.out else
@@ -140,6 +153,7 @@ window_factors = (0.75, 1.0, 1.5)
 log_msg = ["Re-only hardware and MPS; hybrid MPS vacuum subtraction; no Trotter correction.",
            f"MPS dt_target={g.meta.get('dt_target', 'unrecorded')}; hardware dt read from slices."]
 W_hw, W_ref, W_err, band, corr = {}, {}, {}, {}, {}
+W_unm = {}            # error assigned to the masked (unmeasured) sites, 0 unless --unmeasured-error
 reweighted = []
 window_hw, window_ref, details = {}, {}, {}
 source_paths, source_dt = {}, {}
@@ -276,6 +290,10 @@ for comp in tensor.COMPONENTS:
     if comp in ("00", "01"):          # charge conservation: sum_x <J0(x,t) J^nu(0)>_conn = 0
         for i, t in enumerate(times):
             m = mask[i]
+            if m.mean() < args.sum_rule_min_coverage:
+                log_msg.append(f"{comp} t={t}: sum-rule projection skipped, {int(m.sum())}/{m.size} sites "
+                               f"retained is below the coverage floor {args.sum_rule_min_coverage:g}")
+                continue
             target = -Gr[i][~m].sum()
             viol = Gh[i][m].sum() - target
             w2 = Ge[i][m] ** 2
@@ -289,6 +307,12 @@ for comp in tensor.COMPONENTS:
     W_hw[comp] = onesided(times, x, Gh, mask, sig_t)
     W_ref[comp] = onesided(times, x, Gr, mask, sig_t)
     W_err[comp] = werr(times, x, Ge, mask, sig_t)
+    # A masked site is not known to vanish; with --unmeasured-error ref it is
+    # unknown to within the matched reference's magnitude there, and that
+    # bound propagates through the same window weights as the measured errors.
+    W_unm[comp] = (werr(times, x, np.abs(Gr), ~mask, sig_t)
+                   if args.unmeasured_error == "ref" else 0.0)
+    W_err[comp] = float(np.hypot(W_err[comp], W_unm[comp]))
     window_hw[comp] = np.stack([onesided(times, x, Gh, mask, f * sig_t) for f in window_factors])
     window_ref[comp] = np.stack([onesided(times, x, Gr, mask, f * sig_t) for f in window_factors])
     band[comp] = np.ptp(window_hw[comp], axis=0)
@@ -298,6 +322,9 @@ for comp in tensor.COMPONENTS:
         if not np.isfinite(value).all():
             raise ValueError(f"{comp}: nonfinite assembled output")
     details.update({f"times_{comp}": times, f"mask_{comp}": mask,
+                    f"coverage_{comp}": mask.mean(axis=1), f"W_unmeasured_{comp}": W_unm[comp],
+                    f"G_unmeasured_{comp}": (np.where(mask, 0.0, np.abs(Gr))
+                                             if args.unmeasured_error == "ref" else np.zeros_like(Ge)),
                     f"kappa_{comp}": np.array([rows[t][3] for t in times]),
                     f"G_hw_{comp}": Gh, f"G_ref_{comp}": np.where(mask, Gr, 0.0),
                     f"G_err_{comp}": Ge, f"x_{comp}": x, f"sig_t_{comp}": sig_t,
@@ -305,15 +332,20 @@ for comp in tensor.COMPONENTS:
                                            else "Re connected correlator"),
                     f"hardware_dt_{comp}": steps[0], f"source_slices_{comp}": paths})
     source_paths[comp], source_dt[comp] = paths, steps[0]
-    log_msg.append(f"{comp}: t_max={tmax}, sigma_t={sig_t:.2f}, W_err={W_err[comp]:.3f}, "
+    log_msg.append(f"{comp}: t_max={tmax}, sigma_t={sig_t:.2f}, W_err={W_err[comp]:.3f}"
+                   + (f" (of which unmeasured sites {W_unm[comp]:.3f})" if W_unm[comp] else "")
+                   + f", site coverage {mask.mean():.2f} (min over slices {mask.mean(axis=1).min():.2f}), "
                    f"max|W| hw {np.abs(W_hw[comp]).max():.3f} ref {np.abs(W_ref[comp]).max():.3f}, "
                    f"corr(hw, ref) = {corr[comp]:.3f}")
 
 log_msg = ([f"kappa floor {args.kap_min:g}, |beta| floor {args.beta_min:g}, "
             f"time window {args.window}"
             + (f" (p = {args.sig_t_p:g})" if args.sig_t_p is not None else "")
-            + (f", sites {list(args.drop_sites)} dropped" if args.drop_sites else "")] + reweighted
-           + log_msg)
+            + (f", sites {list(args.drop_sites)} dropped" if args.drop_sites else "")
+            + (f", sum rule only at coverage >= {args.sum_rule_min_coverage:g}"
+               if args.sum_rule_min_coverage > 0 else "")
+            + (", masked sites carry the reference |G| as error" if args.unmeasured_error == "ref" else "")]
+           + reweighted + log_msg)
 if not W_hw:
     raise SystemExit("\n".join(log_msg) + "\nNo usable components; no tensor plotted.")
 
@@ -468,10 +500,17 @@ manifest = dict(command="PYTHONPATH=. " + command, source_j0=args.j0, source_j1=
                 mask_convention="True means retained; finite calibrated signal/error and kappa > threshold",
                 kap_min=args.kap_min, reference_projection="real connected correlator",
                 vacuum_subtraction="hybrid MPS", trotter_correction="none",
-                uncertainty="saved-C_err bound plus window envelope; no MPS or Trotter uncertainty",
+                uncertainty="saved-C_err bound plus window envelope; no MPS or Trotter uncertainty"
+                            + ("; masked sites carry the matched reference |G| as error"
+                               if args.unmeasured_error == "ref" else "; masked sites carry no error"),
+                unmeasured_error=args.unmeasured_error,
+                coverage={c: details[f"coverage_{c}"].tolist() for c in comps},
                 error_propagation="diagonal (independent-site) approximation; C_err includes sampling and "
                                   "calibration terms; full spatial and shared-mirror covariance omitted",
-                sum_rule="legacy error-weighted charge-conservation projection for 00 and 01",
+                sum_rule="legacy error-weighted charge-conservation projection for 00 and 01"
+                         + (f", only in slices retaining >= {args.sum_rule_min_coverage:g} of the sites"
+                            if args.sum_rule_min_coverage > 0 else ""),
+                sum_rule_min_coverage=args.sum_rule_min_coverage,
                 q1_cuts=q1[cut_indices].tolist(), q0_plot_limits=args.q0_range, outputs=outputs)
 Path(out + "_command.json").write_text(json.dumps(manifest, indent=2) + "\n")
 Path(out + ".log").write_text("\n".join(log_msg) + "\n")

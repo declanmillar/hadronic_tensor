@@ -123,7 +123,15 @@ def report(path):
         if f"W_ref_{c}" not in d.files:
             continue
         Wr, G_err = d[f"W_ref_{c}"], d[f"G_err_{c}"]
-        print(f"      {'wedge q0':<16}{'bins':>5}{'A':>8}{'shot':>7}{'win':>7}{'sigma':>7}")
+        # hw_w_tensor --unmeasured-error ref: the masked sites carry the
+        # matched reference |G| as an error; it enters A the same way as the
+        # shot errors, through the filter's kernel, with no mask on its own
+        # points (it lives exactly where the measured mask is False)
+        G_unm = d[f"G_unmeasured_{c}"] if f"G_unmeasured_{c}" in d.files else None
+        have_unm = G_unm is not None and np.any(G_unm > 0)
+        ft_all = lambda g, qq: analysis.onesided_ft(times, x, g, qq, q1, sig_t, sig_x, dt, dx)
+        print(f"      {'wedge q0':<16}{'bins':>5}{'A':>8}{'shot':>7}{'win':>7}"
+              + (f"{'unmeas':>8}" if have_unm else "") + f"{'sigma':>7}")
         for lo_edge in WEDGES:
             wed = (lo_edge, asym.WEDGE[1])
             reg = asym.region_mask(q0, wed)
@@ -133,9 +141,15 @@ def report(path):
             A = asym.amplitude(d[f"W_hw_{c}"], Wr, q0, wed)
             shot = asym.shot_error(G_err, T, lambda g: ft(g, q0)[reg], mask=mask)
             win = asym.window_systematic(None, T, lambda f: ft(d[f"G_hw_{c}"], q0, f)[reg])
-            tot, sig = asym.significance(A, shot, win)
-            print(f"      [{lo_edge:+.2f}, {wed[1]:.2f}]{'':4}{int(reg.sum()):5d}"
-                  f"{A:8.3f}{shot:7.3f}{win:7.3f}{sig:7.2f}")
+            if have_unm:
+                unm = asym.shot_error(G_unm, T, lambda g: ft_all(g, q0)[reg], mask=G_unm > 0)
+                tot, sig = asym.significance(A, float(np.hypot(shot, unm)), win)
+                print(f"      [{lo_edge:+.2f}, {wed[1]:.2f}]{'':4}{int(reg.sum()):5d}"
+                      f"{A:8.3f}{shot:7.3f}{win:7.3f}{unm:8.3f}{sig:7.2f}")
+            else:
+                tot, sig = asym.significance(A, shot, win)
+                print(f"      [{lo_edge:+.2f}, {wed[1]:.2f}]{'':4}{int(reg.sum()):5d}"
+                      f"{A:8.3f}{shot:7.3f}{win:7.3f}{sig:7.2f}")
 
 
 p = argparse.ArgumentParser(description=__doc__,
