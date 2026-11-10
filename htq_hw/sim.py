@@ -525,7 +525,7 @@ def check(be, lat: Lattice, card, emb: T.Embedding, ideal_template: str, times,
             T._log(f"--- card {cname}: families {list(fams)}", log)
             r = check(be, lat, cdict, emb, ideal_template, times, families=fams, basis=basis,
                       tol=tol, cap=cap, threads=threads, cache_dir=cache_dir, seed=seed,
-                      mirrors=mirrors, log=log)
+                      mirrors=mirrors, log=log, twirl=twirl)
             out.update({(cname,) + (k if isinstance(k, tuple) else (k,)): v for k, v in r.items()})
         return out
     card = next(iter(cards.values()))

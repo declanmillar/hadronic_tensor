@@ -206,7 +206,8 @@ def test_pre_twirled_submission_round_trip(tmp_path):
         CP.fetch(one["job"], one["meta"], str(tmp_path / "again"), meta_dir=str(tmp_path / "nowhere"))
 
 
-def test_check_passes_on_twirled_rzz_circuits(tmp_path):
+@pytest.mark.parametrize("use_preset", [False, True])
+def test_check_passes_on_twirled_rzz_circuits(tmp_path, monkeypatch, use_preset):
     import os
     from htq_hw import sim as S
     card = C.load_card()
@@ -215,9 +216,20 @@ def test_check_passes_on_twirled_rzz_circuits(tmp_path):
     S.write_ideal_grids(card, 6, 2, ("j0",), [0.0, 0.5], tpl, threads=2)
     be = T.resolve_backend("grid:4x5", fractional=True)
     emb = T.choose_embedding(be, 6, 2)
+    twirled = []
+    original_twirl = T.twirl
+
+    def track_twirl(qc, rng):
+        twirled.append(qc)
+        return original_twirl(qc, rng)
+
+    monkeypatch.setattr(T, "twirl", track_twirl)
+    specs = CP.preset_specs("mirror-diag") if use_preset else None
     res = S.check(be, lat, card, emb, tpl, [0.0, 0.5], families=("j0",), basis="rzz", threads=2,
-                  tol=5e-3, log=None, twirl=True)
-    assert max(res.values()) < 5e-3 and ("j0", "mirror t=0.5") in res
+                  tol=5e-3, log=None, twirl=True, specs=specs)
+    assert max(res.values()) < 5e-3 and any(k[-2:] == ("j0", "mirror t=0.5") for k in res)
+    # Preset dispatch must check twirled base, physics and mirror circuits too.
+    assert len(twirled) == 3
 
 
 def test_twirl_flag_parses_to_override():
