@@ -439,6 +439,11 @@ def cmd_submit(args):
                          twirl_gates=_twirl_gates(args), pre_twirl=args.pre_twirl)
     except CP.BudgetError as e:
         raise SystemExit(f"budget guard: {e}")
+    expected_jobs = len(jobs) * (args.pre_twirl if args.pre_twirl > 1 else 1)
+    if len(recs) < expected_jobs:
+        raise SystemExit(
+            f"submission stopped early: {len(recs)} of {expected_jobs} job(s) kept; "
+            f"inspect the job records in {args.out} before retrying")
     if not args.real and args.fetch:
         CP.fetch_all([(r["job"], r["meta"]) for r in recs], args.out, log=log)
 

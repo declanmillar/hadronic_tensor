@@ -570,7 +570,7 @@ def test_submit_cli_forwards_estimate_wait_and_sparse_job_indices(monkeypatch, w
 
     def submit(*args, **kwargs):
         calls.append((args, kwargs))
-        return []
+        return [{} for _ in args[4]]  # one kept record per selected job
 
     monkeypatch.setattr(cli, "check_versions", lambda: [])
     monkeypatch.setattr(cli, "_setup", lambda *a, **k: (None, None, None, "fake", None, []))
