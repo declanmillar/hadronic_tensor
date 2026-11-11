@@ -346,9 +346,61 @@ def cmd_rehearse(args):
         print(f"record: {path}")
 
 
+def _require_layout(path, be, lat, emb, basis):
+    """Check a newly selected layout against a successful full live acceptance.
+
+    This checks the backend, lattice, basis and complete embedding only; it
+    neither replaces the selected layout nor validates other run options.
+    WARN records with no failed checks are successful, as for acceptance CLI.
+    """
+    from . import acceptance as AC
+    from . import record as R
+
+    def refuse(reason):
+        raise SystemExit(f"required layout from {path}: {reason}; refusing submission")
+
+    try:
+        rec = R.load_record(path)
+    except (OSError, ValueError) as exc:
+        refuse(f"cannot read acceptance record ({exc})")
+    if not isinstance(rec, dict) or rec.get("kind") != "acceptance" or rec.get("level") != "full":
+        refuse("a full acceptance record is required")
+    if rec.get("status") not in (R.PASS, R.WARN) or rec.get("failures") != []:
+        refuse("acceptance did not succeed")
+    steps = rec.get("steps")
+    if (not isinstance(steps, list)
+            or any(not isinstance(s, dict) or s.get("status") not in (R.PASS, R.WARN)
+                   for s in steps)
+            or not set(AC.STEPS_FULL).issubset({s["name"].split(":", 1)[0] for s in steps
+                                              if isinstance(s.get("name"), str)})):
+        refuse("successful full acceptance checks are missing")
+    target = rec.get("target")
+    if (not isinstance(target, dict) or target.get("is_real") is not True
+            or not T.is_real_backend(be)):
+        refuse("acceptance and submission must use a live backend")
+    if target.get("name") != be.name:
+        refuse(f"backend differs ({target.get('name')!r} versus {be.name!r})")
+    if type(rec.get("ns")) is not int or rec["ns"] != lat.ns or rec.get("basis") != basis:
+        refuse("Ns or basis differs from acceptance")
+    embedding = rec.get("embedding")
+    if not isinstance(embedding, dict):
+        refuse("acceptance has no embedding")
+    expected = embedding.get("layout")
+    if (not isinstance(expected, list) or len(expected) < 2 * lat.ns + 1
+            or any(type(q) is not int or q < 0 for q in expected)
+            or len(set(expected)) != len(expected)):
+        refuse("acceptance has no valid explicit layout")
+    if (emb.layout is None or embedding.get("kind") != emb.kind
+            or expected != list(emb.layout)):
+        refuse("selected embedding differs from acceptance; rerun acceptance for both variants")
+    log(f"required layout matches {path} (full acceptance {rec['status']})")
+
+
 def cmd_submit(args):
     from . import campaign as CP
     card, lat, center, be, emb, specs = _setup(args, require_real=args.real)
+    if getattr(args, "require_layout", None):
+        _require_layout(args.require_layout, be, lat, emb, args.basis)
     pubs, info, _ = CP.build_pub_circuits(be, lat, card, emb, specs, args.basis, cache_dir=args.cache, log=log)
     plan, _rep = _plan(args, specs, info, be, pubs)
     shots = {n: max(16, int(v * args.shots_scale)) for n, v in plan["shots"].items()}
@@ -732,6 +784,10 @@ def main(argv=None):
     sb.add_argument("--confirm", default=None, metavar="BACKEND",
                     help="required with --real: the resolved backend name, typed out, so a real "
                          "submission cannot happen by accident")
+    sb.add_argument("--require-layout", default=None, metavar="RECORD",
+                    help="before building or submitting, require the selected embedding to match a "
+                         "successful full live acceptance record (same backend, Ns and basis); "
+                         "checks layout only, not the other run options")
     sb.add_argument("--fetch", action="store_true", help="local mode: fetch bits immediately")
     sb.add_argument("--shots-scale", type=float, default=1.0)
     sb.add_argument("--only-jobs", type=int, nargs="+", default=None)
